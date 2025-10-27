@@ -1,4 +1,4 @@
-package com.andreichiri.mafia_backend.controllers;
+package com.andreichiri.mafia_backend.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

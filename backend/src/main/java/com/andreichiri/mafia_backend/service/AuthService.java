@@ -1,4 +1,4 @@
-package com.andreichiri.mafia_backend.services;
+package com.andreichiri.mafia_backend.service;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;

@@ -1,10 +1,10 @@
-package com.andreichiri.mafia_backend.controllers;
+package com.andreichiri.mafia_backend.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.andreichiri.mafia_backend.services.AuthService;
+import com.andreichiri.mafia_backend.service.AuthService;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
