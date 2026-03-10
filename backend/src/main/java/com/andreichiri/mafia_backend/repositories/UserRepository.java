@@ -6,7 +6,7 @@ import org.springframework.stereotype.Repository;
 import com.andreichiri.mafia_backend.entity.MafiaUser;
 
 @Repository
-public interface UserRepository extends JpaRepository<Integer, MafiaUser>{
-    
-    
+public interface UserRepository extends JpaRepository<MafiaUser, Long>{
+
+
 }
