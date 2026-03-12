@@ -40,4 +40,60 @@ public class GamePlayer {
         VOTED_OUT,
         DISCONNECTED
     }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Game getGame() {
+        return game;
+    }
+
+    public void setGame(Game game) {
+        this.game = game;
+    }
+
+    public MafiaUser getUser() {
+        return user;
+    }
+
+    public void setUser(MafiaUser user) {
+        this.user = user;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
+    public Boolean getAlive() {
+        return alive;
+    }
+
+    public void setAlive(Boolean alive) {
+        this.alive = alive;
+    }
+
+    public Integer getKilledAtRound() {
+        return killedAtRound;
+    }
+
+    public void setKilledAtRound(Integer killedAtRound) {
+        this.killedAtRound = killedAtRound;
+    }
+
+    public DeathCause getDeathCause() {
+        return deathCause;
+    }
+
+    public void setDeathCause(DeathCause deathCause) {
+        this.deathCause = deathCause;
+    }
 }

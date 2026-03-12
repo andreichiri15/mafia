@@ -3,6 +3,10 @@ package com.andreichiri.mafia_backend.entity;
 import jakarta.annotation.Nullable;
 import jakarta.persistence.*;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "lobbies")
 public class Lobby {
@@ -30,11 +34,23 @@ public class Lobby {
     private String generatedLink;
 
     @Column(nullable = false)
-    private boolean isPublic;
+    private boolean publicLobby;
+
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
 
     // TODO: ceva legat de configurarea jocului (roluri, cat dureaza ziua, noaptea etc)
 
     // TODO: relatii
+
+    @OneToMany(mappedBy = "id", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<LobbyPlayer> lobbyPlayers = new ArrayList<>();
+
+    @OneToOne(mappedBy = "lobby")
+    private Game game;
+
+    @OneToMany(mappedBy = "lobby")
+    private List<Message> messages = new ArrayList<>();
 
     public Long getId() {
         return id;
@@ -92,11 +108,43 @@ public class Lobby {
         this.generatedLink = generatedLink;
     }
 
-    public boolean isPublic() {
-        return isPublic;
+    public boolean isPublicLobby() {
+        return publicLobby;
     }
 
-    public void setPublic(boolean aPublic) {
-        isPublic = aPublic;
+    public void setPublicLobby(boolean publicLobby) {
+        this.publicLobby = publicLobby;
+    }
+
+    public List<LobbyPlayer> getLobbyPlayers() {
+        return lobbyPlayers;
+    }
+
+    public void setLobbyPlayers(List<LobbyPlayer> lobbyPlayers) {
+        this.lobbyPlayers = lobbyPlayers;
+    }
+
+    public Game getGame() {
+        return game;
+    }
+
+    public void setGame(Game game) {
+        this.game = game;
+    }
+
+    public List<Message> getMessages() {
+        return messages;
+    }
+
+    public void setMessages(List<Message> messages) {
+        this.messages = messages;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 }
