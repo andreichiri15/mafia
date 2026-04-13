@@ -1,31 +1,28 @@
 package com.andreichiri.mafia_backend.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
-
+import com.andreichiri.mafia_backend.dto.LoginRequest;
+import com.andreichiri.mafia_backend.dto.RegisterRequest;
 import com.andreichiri.mafia_backend.service.AuthService;
-
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping("/api/auth")
 public class AuthController {
 
-    @Autowired
-    AuthService authService;
+    private final AuthService authService;
 
-    @PostMapping("auth/login")
-    public ResponseEntity<?> authLogin() {
-        return authService.authLogin();
+    public AuthController(AuthService authService) {
+        this.authService = authService;
     }
 
-
-    @PostMapping("auth/register")
-    public ResponseEntity<?> authRegister() {
-        return authService.authRegister();
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        return authService.login(request);
     }
-    
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+        return authService.register(request);
+    }
 }

@@ -15,18 +15,19 @@ public class Message {
     private String content;
 
     @ManyToOne
-    @JoinColumn(name = "lobby_id")
+    @JoinColumn(name = "lobbyId")
     private Lobby lobby;
 
     @ManyToOne
-    @JoinColumn(name = "game_id")
+    @JoinColumn(name = "gameId")
     private Game game;
 
     @ManyToOne
-    @JoinColumn(name = "sender_id")
+    @JoinColumn(name = "senderId")
     private MafiaUser sender;
 
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
     private ChatChannel chatChannel;
 
     @Column(nullable = false)

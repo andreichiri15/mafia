@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: mafia-postgres
+    environment:
+      POSTGRES_DB: mafia
+      POSTGRES_USER: mafia
+      POSTGRES_PASSWORD: mafia123
+    ports:
+      - "5433:5432"
+    volumes:
+      - mafia_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  mafia_postgres_data:

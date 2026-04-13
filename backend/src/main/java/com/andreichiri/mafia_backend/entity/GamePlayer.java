@@ -10,13 +10,14 @@ public class GamePlayer {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "game_id", nullable = false)
+    @JoinColumn(name = "gameId", nullable = false)
     private Game game;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "userId", nullable = false)
     private MafiaUser user;
 
+    @Enumerated(EnumType.STRING)
     private Role role;
 
     @Column(nullable = false)
@@ -29,7 +30,7 @@ public class GamePlayer {
     @Enumerated(EnumType.STRING)
     private DeathCause deathCause;
 
-    private enum Role {
+    public enum Role {
         MAFIA,
         VILLAGER,
         SHERIFF

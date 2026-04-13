@@ -10,5 +10,11 @@ import java.util.List;
 public interface LobbyRepository extends JpaRepository<Lobby, Long> {
     public List<Lobby> getLobbiesByNameAndPublicLobby(String name, boolean publicLobby);
 
+    public List<Lobby> getLobbiesByNameContainingIgnoreCaseAndPublicLobby(String name, boolean publicLobby);
+
     public List<Lobby> getLobbiesByPublicLobby(boolean publicLobby);
+
+    Lobby getLobbyById(Long id);
+
+    Lobby getLobbyByIdAndPublicLobby(Long id, boolean publicLobby);
 }

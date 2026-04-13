@@ -18,7 +18,7 @@ public class Lobby {
     private String name;
 
     @ManyToOne
-    @JoinColumn(name = "host_id", nullable = false)
+    @JoinColumn(name = "hostId", nullable = false)
     private MafiaUser host;
 
     @Column(nullable = false)
@@ -39,11 +39,7 @@ public class Lobby {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    // TODO: ceva legat de configurarea jocului (roluri, cat dureaza ziua, noaptea etc)
-
-    // TODO: relatii
-
-    @OneToMany(mappedBy = "id", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "lobby", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<LobbyPlayer> lobbyPlayers = new ArrayList<>();
 
     @OneToOne(mappedBy = "lobby")

@@ -13,21 +13,22 @@ public class GameAction {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "game_id", nullable = false)
+    @JoinColumn(name = "gameId", nullable = false)
     private Game game;
 
     @Column(nullable = false)
     private Integer round;
 
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
     private Game.GamePhase gamePhase;
 
     @ManyToOne
-    @JoinColumn(name = "actor_id", nullable = false)
+    @JoinColumn(name = "actorId", nullable = false)
     private MafiaUser actor;
 
     @ManyToOne
-    @JoinColumn(name = "target_id", nullable = false)
+    @JoinColumn(name = "targetId", nullable = false)
     private MafiaUser target;
 
     @Column(nullable = false)

@@ -14,7 +14,7 @@ public class Game {
     private Long id;
 
     @OneToOne
-    @JoinColumn(name = "lobby_id", nullable = false)
+    @JoinColumn(name = "lobbyId", nullable = false)
     private Lobby lobby;
 
     @Column(nullable = false)

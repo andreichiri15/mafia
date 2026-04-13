@@ -7,35 +7,72 @@ import jakarta.persistence.Table;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "mafia_users")
 public class MafiaUser {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long user_id;
+    private Long userId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String username;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String email;
 
     @Column(nullable = false)
     private String password;
 
-    @Column(name = "date_joined", nullable = false, updatable = false)
+    @Column(name = "dateJoined", nullable = false, updatable = false)
     private LocalDateTime dateJoined;
 
-    // TODO: relationships
-
-
-    public Long getUser_id() {
-        return user_id;
+    @PrePersist
+    protected void onCreate() {
+        this.dateJoined = LocalDateTime.now();
     }
 
-    public void setUser_id(Long user_id) {
-        this.user_id = user_id;
+    @OneToMany(mappedBy = "user")
+    private List<GamePlayer> gamePlayers;
+
+    @OneToMany(mappedBy = "sender")
+    private List<Message> messages;
+
+    @OneToMany(mappedBy = "user")
+    private List<LobbyPlayer> lobbyPlayers = new ArrayList<>();
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
+    public List<GamePlayer> getGamePlayers() {
+        return gamePlayers;
+    }
+
+    public void setGamePlayers(List<GamePlayer> gamePlayers) {
+        this.gamePlayers = gamePlayers;
+    }
+
+    public List<Message> getMessages() {
+        return messages;
+    }
+
+    public void setMessages(List<Message> messages) {
+        this.messages = messages;
+    }
+
+    public List<LobbyPlayer> getLobbyPlayers() {
+        return lobbyPlayers;
+    }
+
+    public void setLobbyPlayers(List<LobbyPlayer> lobbyPlayers) {
+        this.lobbyPlayers = lobbyPlayers;
     }
 
     public String getUsername() {

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Navigation } from "./components/Navigation";
 import { HomePage } from "./components/HomePage";
@@ -5,8 +6,15 @@ import { PlayPage } from "./components/PlayPage";
 import { LobbyPage } from "./components/LobbyPage";
 import { ProfilePage } from "./components/ProfilePage";
 import SignInPage from "./components/SignInPage";
+import { useAuthStore } from "./store/authStore";
 
 export default function App() {
+	const initialize = useAuthStore((s) => s.initialize);
+
+	useEffect(() => {
+		initialize();
+	}, [initialize]);
+
 	return (
 		<BrowserRouter>
 			<div className="size-full flex flex-col">
@@ -15,7 +23,7 @@ export default function App() {
 						<Routes>
 							<Route path="/" element={<HomePage />} />
 							<Route path="/play" element={<PlayPage />} />
-							<Route path="/lobby" element={<LobbyPage />} />
+							<Route path="/lobby/:id" element={<LobbyPage />} />
 							<Route path="/profile" element={<ProfilePage />} />
 							<Route path="/signin" element={<SignInPage />} />
 						</Routes>
