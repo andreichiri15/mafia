@@ -34,3 +34,43 @@ export interface CreateLobbyRequest {
   isLocked: boolean;
   publicLobby: boolean;
 }
+
+// Game types
+
+export type GamePhase = "NIGHT" | "DAY" | "VOTING" | "GAME_OVER";
+export type Role = "MAFIA" | "VILLAGER" | "SHERIFF";
+
+export interface GamePlayerInfo {
+  userId: number;
+  username: string;
+  alive: boolean;
+  role: Role | null;
+}
+
+export interface GameState {
+  gameId: number;
+  phase: GamePhase;
+  round: number;
+  phaseEndTime: number; // epoch ms
+  yourRole: Role;
+  alive: boolean;
+  players: GamePlayerInfo[];
+  events: string[];
+}
+
+export interface GameStartEvent {
+  gameId: number;
+  lobbyId: number;
+}
+
+export interface PhaseResultEvent {
+  phase: GamePhase;
+  round: number;
+  eliminatedPlayer: string | null;
+  events: string[];
+}
+
+export interface GameOverEvent {
+  winningTeam: "MAFIA_WIN" | "VILLAGER_WIN";
+  players: GamePlayerInfo[];
+}

@@ -4,6 +4,7 @@ import { Navigation } from "./components/Navigation";
 import { HomePage } from "./components/HomePage";
 import { PlayPage } from "./components/PlayPage";
 import { LobbyPage } from "./components/LobbyPage";
+import { GamePage } from "./components/GamePage";
 import { ProfilePage } from "./components/ProfilePage";
 import SignInPage from "./components/SignInPage";
 import { useAuthStore } from "./store/authStore";
@@ -24,6 +25,7 @@ export default function App() {
 							<Route path="/" element={<HomePage />} />
 							<Route path="/play" element={<PlayPage />} />
 							<Route path="/lobby/:id" element={<LobbyPage />} />
+							<Route path="/game/:id" element={<GamePage />} />
 							<Route path="/profile" element={<ProfilePage />} />
 							<Route path="/signin" element={<SignInPage />} />
 						</Routes>

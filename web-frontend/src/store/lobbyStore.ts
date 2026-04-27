@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { api } from "../lib/api";
-import { connectStomp, disconnectStomp, subscribe, getStompClient } from "../lib/websocket";
+import { connectStomp, disconnectStomp, subscribe } from "../lib/websocket";
 import { useChatStore } from "./chatStore";
 import type { LobbySummary, LobbyDetail, CreateLobbyRequest } from "../lib/types";
 import type { StompSubscription } from "@stomp/stompjs";
@@ -11,6 +11,7 @@ interface LobbyState {
   loading: boolean;
   error: string | null;
   subscriptions: StompSubscription[];
+  startedGameId: number | null;
 
   fetchLobbies: (searchName?: string) => Promise<void>;
   createLobby: (request: CreateLobbyRequest) => Promise<LobbyDetail>;
@@ -20,6 +21,7 @@ interface LobbyState {
   toggleReady: (lobbyId: number) => Promise<void>;
   subscribeLobby: (lobbyId: number) => Promise<void>;
   unsubscribeLobby: () => void;
+  clearStartedGameId: () => void;
 }
 
 export const useLobbyStore = create<LobbyState>((set, get) => ({
@@ -28,6 +30,7 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
   loading: false,
   error: null,
   subscriptions: [],
+  startedGameId: null,
 
   fetchLobbies: async (searchName?: string) => {
     set({ loading: true, error: null });
@@ -119,14 +122,23 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
     });
     if (chatSub) subs.push(chatSub);
 
+    // Subscribe to game-start so all players can navigate when host starts
+    const gameStartSub = subscribe(`/topic/lobby/${lobbyId}/game-start`, (message) => {
+      const event = JSON.parse(message.body);
+      set({ startedGameId: event.gameId });
+    });
+    if (gameStartSub) subs.push(gameStartSub);
+
     set({ subscriptions: subs });
   },
 
   unsubscribeLobby: () => {
     const { subscriptions } = get();
     subscriptions.forEach((sub) => sub.unsubscribe());
-    set({ subscriptions: [] });
+    set({ subscriptions: [], startedGameId: null });
     useChatStore.getState().clearMessages();
     disconnectStomp();
   },
+
+  clearStartedGameId: () => set({ startedGameId: null }),
 }));

@@ -12,6 +12,7 @@ import { Users, Link as LinkIcon, Send, Copy, Check, LogOut, Loader2, CheckCircl
 import { useLobbyStore } from "../store/lobbyStore";
 import { useChatStore } from "../store/chatStore";
 import { useAuthStore } from "../store/authStore";
+import { useGameStore } from "../store/gameStore";
 import { sendMessage } from "../lib/websocket";
 
 export function LobbyPage() {
@@ -20,11 +21,13 @@ export function LobbyPage() {
   const lobbyId = Number(id);
 
   const user = useAuthStore((s) => s.user);
-  const { currentLobby, loading, error, leaveLobby, toggleReady, subscribeLobby, unsubscribeLobby } = useLobbyStore();
+  const { currentLobby, loading, error, leaveLobby, toggleReady, subscribeLobby, unsubscribeLobby, startedGameId, clearStartedGameId } = useLobbyStore();
+  const startGame = useGameStore((s) => s.startGame);
   const messages = useChatStore((s) => s.messages);
 
   const [messageInput, setMessageInput] = useState("");
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   const inviteLink = `${window.location.origin}/lobby/${lobbyId}`;
 
@@ -33,6 +36,15 @@ export function LobbyPage() {
     subscribeLobby(lobbyId);
     return () => unsubscribeLobby();
   }, [lobbyId, subscribeLobby, unsubscribeLobby]);
+
+  // When the host starts the game, all subscribed players navigate
+  useEffect(() => {
+    if (startedGameId !== null) {
+      const id = startedGameId;
+      clearStartedGameId();
+      navigate(`/game/${id}`);
+    }
+  }, [startedGameId, navigate, clearStartedGameId]);
 
   const isHost = currentLobby?.players.some(
     (p) => p.userId === user?.userId && p.isHost
@@ -171,8 +183,20 @@ export function LobbyPage() {
                 )}
 
                 {isHost && (
-                  <Button className="w-full" disabled>
-                    Start Game
+                  <Button
+                    className="w-full"
+                    disabled={starting || (currentLobby.currentPlayers < 4)}
+                    onClick={async () => {
+                      setStarting(true);
+                      try {
+                        const event = await startGame(lobbyId);
+                        navigate(`/game/${event.gameId}`);
+                      } catch {
+                        setStarting(false);
+                      }
+                    }}
+                  >
+                    {starting ? "Starting..." : `Start Game${currentLobby.currentPlayers < 4 ? " (need 4+)" : ""}`}
                   </Button>
                 )}
               </div>
