@@ -72,7 +72,7 @@ public class GameService {
 
         // Assign roles and create game players
         List<LobbyPlayer> lobbyPlayers = lobby.getLobbyPlayers();
-        List<GamePlayer.Role> roles = roleAssignmentService.assignRoles(lobbyPlayers.size());
+        List<GamePlayer.Role> roles = roleAssignmentService.assignRoles(lobbyPlayers.size(), lobby);
 
         for (int i = 0; i < lobbyPlayers.size(); i++) {
             GamePlayer gp = new GamePlayer();
@@ -233,6 +233,33 @@ public class GameService {
             }
         }
 
+        // Apply mutilator effects (mute / revoke vote)
+        List<GameAction> muteActions = gameActionRepository
+                .findByGameIdAndRoundAndActionType(gameId, round, GameAction.ActionType.MUTE);
+        for (GameAction m : muteActions) {
+            GamePlayer victim = gamePlayerRepository
+                    .findByGameIdAndUserId(gameId, m.getTarget().getUserId())
+                    .orElse(null);
+            if (victim != null && victim.getAlive()) {
+                // Mute spans the upcoming day + voting (round = current night round)
+                victim.setSilencedUntilRound(round);
+                gamePlayerRepository.save(victim);
+                events.add(victim.getUser().getUsername() + " was silenced for the day.");
+            }
+        }
+        List<GameAction> revokeActions = gameActionRepository
+                .findByGameIdAndRoundAndActionType(gameId, round, GameAction.ActionType.REVOKE_VOTE);
+        for (GameAction r : revokeActions) {
+            GamePlayer victim = gamePlayerRepository
+                    .findByGameIdAndUserId(gameId, r.getTarget().getUserId())
+                    .orElse(null);
+            if (victim != null && victim.getAlive()) {
+                victim.setVoteRevokedUntilRound(round);
+                gamePlayerRepository.save(victim);
+                events.add(victim.getUser().getUsername() + "'s vote has been revoked for the upcoming vote.");
+            }
+        }
+
         // Apply mafia kill (check if healed)
         if (killTargetId != null) {
             // Check if target was healed
@@ -266,19 +293,35 @@ public class GameService {
         return events;
     }
 
+    /** Holds the eliminated player from voting so resolvePhase can check for jester win. */
+    private final java.util.concurrent.ConcurrentHashMap<Long, GamePlayer.Role> lastVotedOutRole = new java.util.concurrent.ConcurrentHashMap<>();
+
     private List<String> resolveVoting(Game game) {
         List<String> events = new ArrayList<>();
         int round = game.getCurrentRound();
         Long gameId = game.getId();
 
+        lastVotedOutRole.remove(gameId);
+
         List<GameAction> voteActions = gameActionRepository
                 .findByGameIdAndRoundAndActionType(gameId, round, GameAction.ActionType.VOTE);
 
-        Long voteTargetId = getMajorityTarget(voteActions);
+        // Filter out votes from players whose vote was revoked this round
+        List<GameAction> validVotes = voteActions.stream()
+                .filter(v -> {
+                    GamePlayer voter = gamePlayerRepository
+                            .findByGameIdAndUserId(gameId, v.getActor().getUserId())
+                            .orElse(null);
+                    return voter == null
+                            || voter.getVoteRevokedUntilRound() == null
+                            || voter.getVoteRevokedUntilRound() < round;
+                })
+                .toList();
+
+        Long voteTargetId = getMajorityTarget(validVotes);
 
         if (voteTargetId != null) {
-            // Check for tie
-            Map<Long, Long> voteCounts = voteActions.stream()
+            Map<Long, Long> voteCounts = validVotes.stream()
                     .collect(Collectors.groupingBy(a -> a.getTarget().getUserId(), Collectors.counting()));
             long maxVotes = voteCounts.values().stream().mapToLong(Long::longValue).max().orElse(0);
             long tieCount = voteCounts.values().stream().filter(v -> v == maxVotes).count();
@@ -295,6 +338,7 @@ public class GameService {
                     gamePlayerRepository.save(victim);
                     events.add(victim.getUser().getUsername() + " was voted out. They were a " + victim.getRole().name() + ".");
                     events.add("ELIMINATED:" + victim.getUser().getUsername());
+                    lastVotedOutRole.put(gameId, victim.getRole());
                 }
             }
         } else {
@@ -305,16 +349,18 @@ public class GameService {
     }
 
     private String checkWinCondition(Game game) {
+        // Jester win takes precedence — checked when a player is voted out
+        GamePlayer.Role votedOut = lastVotedOutRole.remove(game.getId());
+        if (votedOut == GamePlayer.Role.JESTER) return "JESTER_WIN";
+
         List<GamePlayer> alivePlayers = game.getGamePlayers().stream()
                 .filter(GamePlayer::getAlive)
                 .toList();
 
         long mafiaAlive = alivePlayers.stream()
-                .filter(p -> p.getRole() == GamePlayer.Role.MAFIA)
+                .filter(p -> p.getRole().isMafiaSide())
                 .count();
-        long nonMafiaAlive = alivePlayers.stream()
-                .filter(p -> p.getRole() != GamePlayer.Role.MAFIA)
-                .count();
+        long nonMafiaAlive = alivePlayers.size() - mafiaAlive;
 
         if (mafiaAlive == 0) return "VILLAGER_WIN";
         if (mafiaAlive >= nonMafiaAlive) return "MAFIA_WIN";
@@ -344,24 +390,47 @@ public class GameService {
 
     private void validateAction(Game game, GamePlayer actor, GameAction.ActionType actionType, Long targetUserId) {
         Game.GamePhase phase = game.getGamePhase();
+        Lobby lobby = game.getLobby();
 
         switch (actionType) {
             case MAFIA_KILL -> {
                 if (phase != Game.GamePhase.NIGHT) throw new RuntimeException("Mafia can only kill at night");
                 if (actor.getRole() != GamePlayer.Role.MAFIA) throw new RuntimeException("Only mafia can kill");
-                // Can't kill self
                 if (actor.getUser().getUserId().equals(targetUserId)) throw new RuntimeException("Cannot target yourself");
             }
             case INVESTIGATE -> {
                 if (phase != Game.GamePhase.NIGHT) throw new RuntimeException("Sheriff can only investigate at night");
                 if (actor.getRole() != GamePlayer.Role.SHERIFF) throw new RuntimeException("Only the sheriff can investigate");
                 if (actor.getUser().getUserId().equals(targetUserId)) throw new RuntimeException("Cannot investigate yourself");
+                int delay = lobby.getSheriffInvestigationDelay() != null ? lobby.getSheriffInvestigationDelay() : 0;
+                if (game.getCurrentRound() <= delay) {
+                    throw new RuntimeException("Sheriff cannot investigate yet (delay: " + delay + " rounds)");
+                }
             }
             case VOTE -> {
                 if (phase != Game.GamePhase.VOTING) throw new RuntimeException("Can only vote during voting phase");
+                if (actor.getVoteRevokedUntilRound() != null
+                        && actor.getVoteRevokedUntilRound() >= game.getCurrentRound()) {
+                    throw new RuntimeException("Your vote has been revoked this round");
+                }
             }
             case HEALED -> {
                 if (phase != Game.GamePhase.NIGHT) throw new RuntimeException("Can only heal at night");
+                if (actor.getRole() != GamePlayer.Role.DOCTOR) throw new RuntimeException("Only the doctor can heal");
+                // Self-heal limit check
+                if (actor.getUser().getUserId().equals(targetUserId)) {
+                    int limit = lobby.getDoctorSelfSaveLimit() != null ? lobby.getDoctorSelfSaveLimit() : -1;
+                    if (limit >= 0 && actor.getSelfHealsUsed() >= limit) {
+                        throw new RuntimeException("You have reached your self-heal limit (" + limit + ")");
+                    }
+                    actor.setSelfHealsUsed(actor.getSelfHealsUsed() + 1);
+                    gamePlayerRepository.save(actor);
+                }
+            }
+            case MUTE, REVOKE_VOTE -> {
+                if (phase != Game.GamePhase.NIGHT) throw new RuntimeException("Mutilator can only act at night");
+                if (actor.getRole() != GamePlayer.Role.MUTILATOR) throw new RuntimeException("Only the mutilator can use this action");
+                if (actor.getUser().getUserId().equals(targetUserId)) throw new RuntimeException("Cannot target yourself");
             }
         }
 
@@ -397,16 +466,33 @@ public class GameService {
                         .filter(p -> p.getRole() == GamePlayer.Role.MAFIA).count();
                 long sheriffAlive = alivePlayers.stream()
                         .filter(p -> p.getRole() == GamePlayer.Role.SHERIFF).count();
+                long doctorAlive = alivePlayers.stream()
+                        .filter(p -> p.getRole() == GamePlayer.Role.DOCTOR).count();
+                long mutilatorAlive = alivePlayers.stream()
+                        .filter(p -> p.getRole() == GamePlayer.Role.MUTILATOR).count();
                 long mafiaActions = currentActions.stream()
                         .filter(a -> a.getActionType() == GameAction.ActionType.MAFIA_KILL).count();
                 long sheriffActions = currentActions.stream()
                         .filter(a -> a.getActionType() == GameAction.ActionType.INVESTIGATE).count();
-                yield mafiaActions >= mafiaAlive && sheriffActions >= sheriffAlive;
+                long doctorActions = currentActions.stream()
+                        .filter(a -> a.getActionType() == GameAction.ActionType.HEALED).count();
+                long mutilatorActions = currentActions.stream()
+                        .filter(a -> a.getActionType() == GameAction.ActionType.MUTE
+                                  || a.getActionType() == GameAction.ActionType.REVOKE_VOTE).count();
+                yield mafiaActions >= mafiaAlive
+                        && sheriffActions >= sheriffAlive
+                        && doctorActions >= doctorAlive
+                        && mutilatorActions >= mutilatorAlive;
             }
             case VOTING -> {
+                // Players whose vote was revoked don't need to submit
+                long votersExpected = alivePlayers.stream()
+                        .filter(p -> p.getVoteRevokedUntilRound() == null
+                                  || p.getVoteRevokedUntilRound() < round)
+                        .count();
                 long voteCount = currentActions.stream()
                         .filter(a -> a.getActionType() == GameAction.ActionType.VOTE).count();
-                yield voteCount >= alivePlayers.size();
+                yield voteCount >= votersExpected;
             }
             default -> false; // DAY phase has no required actions — timer-only
         };

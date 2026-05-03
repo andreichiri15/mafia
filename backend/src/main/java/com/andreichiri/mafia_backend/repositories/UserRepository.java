@@ -13,4 +13,5 @@ public interface UserRepository extends JpaRepository<MafiaUser, Long> {
     Optional<MafiaUser> findByUsername(String username);
     boolean existsByEmail(String email);
     boolean existsByUsername(String username);
+    java.util.List<MafiaUser> findTop10ByUsernameContainingIgnoreCaseOrderByUsernameAsc(String query);
 }

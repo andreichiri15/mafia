@@ -23,11 +23,17 @@ public class AuthService {
     }
 
     public ResponseEntity<?> login(LoginRequest request) {
-        MafiaUser user = userRepository.findByEmail(request.email())
-                .orElse(null);
+        String identifier = request.identifier();
+        if (identifier == null || identifier.isBlank()) {
+            return ResponseEntity.status(401).body("Invalid credentials");
+        }
+
+        MafiaUser user = identifier.contains("@")
+                ? userRepository.findByEmail(identifier).orElse(null)
+                : userRepository.findByUsername(identifier).orElse(null);
 
         if (user == null || !passwordEncoder.matches(request.password(), user.getPassword())) {
-            return ResponseEntity.status(401).body("Invalid email or password");
+            return ResponseEntity.status(401).body("Invalid credentials");
         }
 
         String token = jwtTokenProvider.generateToken(user.getUsername(), user.getUserId());

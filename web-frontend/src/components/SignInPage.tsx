@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "./ui/card";
 import { Label } from "./ui/label";
@@ -8,6 +8,7 @@ import { useAuthStore } from "../store/authStore";
 
 export default function SignInPage() {
     const [isRegister, setIsRegister] = useState(false);
+    const [identifier, setIdentifier] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [username, setUsername] = useState("");
@@ -16,6 +17,8 @@ export default function SignInPage() {
 
     const login = useAuthStore((s) => s.login);
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const redirectTo = searchParams.get("redirect");
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -25,7 +28,7 @@ export default function SignInPage() {
         const url = isRegister ? "/api/auth/register" : "/api/auth/login";
         const body = isRegister
             ? { username, email, password }
-            : { email, password };
+            : { identifier, password };
 
         try {
             const res = await fetch(url, {
@@ -42,7 +45,9 @@ export default function SignInPage() {
 
             const data = await res.json();
             login(data.token, { userId: data.userId, username: data.username });
-            navigate("/");
+            // Only honor relative paths to avoid open-redirect issues
+            const target = redirectTo && redirectTo.startsWith("/") ? redirectTo : "/";
+            navigate(target);
         } catch {
             setError("Could not connect to server");
         } finally {
@@ -59,7 +64,7 @@ export default function SignInPage() {
                 <CardContent>
                     <form id="auth-form" onSubmit={handleSubmit}>
                         <div className="flex flex-col gap-4">
-                            {isRegister && (
+                            {isRegister ? (
                                 <>
                                     <Label htmlFor="username">Username</Label>
                                     <Input
@@ -70,17 +75,29 @@ export default function SignInPage() {
                                         onChange={(e) => setUsername(e.target.value)}
                                         required
                                     />
+                                    <Label htmlFor="email">Email</Label>
+                                    <Input
+                                        id="email"
+                                        type="email"
+                                        placeholder="email@example.com"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        required
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <Label htmlFor="identifier">Email or Username</Label>
+                                    <Input
+                                        id="identifier"
+                                        type="text"
+                                        placeholder="email@example.com or username"
+                                        value={identifier}
+                                        onChange={(e) => setIdentifier(e.target.value)}
+                                        required
+                                    />
                                 </>
                             )}
-                            <Label htmlFor="email">Email</Label>
-                            <Input
-                                id="email"
-                                type="email"
-                                placeholder="email@example.com"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                            />
                             <Label htmlFor="password">Password</Label>
                             <Input
                                 id="password"

@@ -1,3 +1,3 @@
 package com.andreichiri.mafia_backend.dto;
 
-public record LoginRequest(String email, String password) {}
+public record LoginRequest(String identifier, String password) {}

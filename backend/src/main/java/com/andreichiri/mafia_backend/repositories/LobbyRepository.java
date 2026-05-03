@@ -17,4 +17,6 @@ public interface LobbyRepository extends JpaRepository<Lobby, Long> {
     Lobby getLobbyById(Long id);
 
     Lobby getLobbyByIdAndPublicLobby(Long id, boolean publicLobby);
+
+    java.util.Optional<Lobby> findByGeneratedLink(String token);
 }

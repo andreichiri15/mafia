@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { api } from "../lib/api";
 import { connectStomp, disconnectStomp, subscribe } from "../lib/websocket";
 import { useChatStore } from "./chatStore";
-import type { LobbySummary, LobbyDetail, CreateLobbyRequest } from "../lib/types";
+import type { LobbySummary, LobbyDetail, CreateLobbyRequest, GameSettings, InviteResolution } from "../lib/types";
 import type { StompSubscription } from "@stomp/stompjs";
 
 interface LobbyState {
@@ -19,6 +19,9 @@ interface LobbyState {
   joinLobby: (lobbyId: number, password?: string) => Promise<LobbyDetail>;
   leaveLobby: (lobbyId: number) => Promise<void>;
   toggleReady: (lobbyId: number) => Promise<void>;
+  updateSettings: (lobbyId: number, settings: GameSettings) => Promise<void>;
+  resolveInvite: (token: string) => Promise<InviteResolution>;
+  inviteFriend: (lobbyId: number, friendUserId: number) => Promise<void>;
   subscribeLobby: (lobbyId: number) => Promise<void>;
   unsubscribeLobby: () => void;
   clearStartedGameId: () => void;
@@ -93,6 +96,24 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
     } catch (e) {
       set({ error: (e as Error).message });
     }
+  },
+
+  updateSettings: async (lobbyId: number, settings: GameSettings) => {
+    try {
+      const lobby = await api.put<LobbyDetail>(`/api/lobbies/${lobbyId}/settings`, settings);
+      set({ currentLobby: lobby });
+    } catch (e) {
+      set({ error: (e as Error).message });
+      throw e;
+    }
+  },
+
+  resolveInvite: async (token: string) => {
+    return api.get<InviteResolution>(`/api/lobbies/invite/${encodeURIComponent(token)}`);
+  },
+
+  inviteFriend: async (lobbyId: number, friendUserId: number) => {
+    await api.post(`/api/lobbies/${lobbyId}/invite/${friendUserId}`);
   },
 
   subscribeLobby: async (lobbyId: number) => {

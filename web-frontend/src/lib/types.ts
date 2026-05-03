@@ -14,6 +14,16 @@ export interface PlayerInfo {
   isReady: boolean;
 }
 
+export interface GameSettings {
+  mafiaCount: number;
+  includeSheriff: boolean;
+  includeDoctor: boolean;
+  includeJester: boolean;
+  includeMutilator: boolean;
+  doctorSelfSaveLimit: number; // -1 = unlimited
+  sheriffInvestigationDelay: number;
+}
+
 export interface LobbyDetail {
   lobbyId: number;
   name: string;
@@ -23,8 +33,28 @@ export interface LobbyDetail {
   hasPassword: boolean;
   isLocked: boolean;
   publicLobby: boolean;
+  inviteToken: string | null;
   players: PlayerInfo[];
+  settings: GameSettings;
   createdAt: string;
+}
+
+export interface InviteResolution {
+  lobbyId: number;
+  name: string;
+  hostname: string;
+  currentPlayers: number;
+  maxPlayers: number;
+  isLocked: boolean;
+  inGame: boolean;
+}
+
+export interface LobbyInvite {
+  lobbyId: number;
+  lobbyName: string;
+  inviteToken: string;
+  inviterUsername: string;
+  sentAt: string;
 }
 
 export interface CreateLobbyRequest {
@@ -38,7 +68,8 @@ export interface CreateLobbyRequest {
 // Game types
 
 export type GamePhase = "NIGHT" | "DAY" | "VOTING" | "GAME_OVER";
-export type Role = "MAFIA" | "VILLAGER" | "SHERIFF";
+export type Role = "MAFIA" | "VILLAGER" | "SHERIFF" | "DOCTOR" | "JESTER" | "MUTILATOR";
+export type WinningTeam = "MAFIA_WIN" | "VILLAGER_WIN" | "JESTER_WIN";
 
 export interface GamePlayerInfo {
   userId: number;
@@ -71,6 +102,38 @@ export interface PhaseResultEvent {
 }
 
 export interface GameOverEvent {
-  winningTeam: "MAFIA_WIN" | "VILLAGER_WIN";
+  winningTeam: WinningTeam;
   players: GamePlayerInfo[];
+}
+
+// Friends + DM types
+
+export type PresenceStatus = "ONLINE" | "IN_LOBBY" | "IN_GAME" | "OFFLINE";
+
+export interface FriendInfo {
+  userId: number;
+  username: string;
+  status: PresenceStatus;
+}
+
+export interface FriendRequestInfo {
+  requestId: number;
+  fromUserId: number;
+  fromUsername: string;
+  createdAt: string;
+}
+
+export interface UserSearchResult {
+  userId: number;
+  username: string;
+  relationship: "NONE" | "PENDING_OUT" | "PENDING_IN" | "FRIENDS" | "SELF";
+}
+
+export interface DirectMessageInfo {
+  id: number;
+  senderId: number;
+  senderUsername: string;
+  receiverId: number;
+  content: string;
+  sentAt: string;
 }

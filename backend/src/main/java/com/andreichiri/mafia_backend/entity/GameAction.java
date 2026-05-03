@@ -45,7 +45,9 @@ public class GameAction {
         VOTE,
         MAFIA_KILL,
         HEALED,
-        INVESTIGATE
+        INVESTIGATE,
+        MUTE,
+        REVOKE_VOTE
     }
 
     public Long getId() {

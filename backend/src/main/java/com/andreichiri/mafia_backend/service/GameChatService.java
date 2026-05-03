@@ -72,6 +72,10 @@ public class GameChatService {
                 if (!player.getAlive()) {
                     throw new RuntimeException("Dead players cannot use day chat");
                 }
+                if (player.getSilencedUntilRound() != null
+                        && player.getSilencedUntilRound() >= game.getCurrentRound()) {
+                    throw new RuntimeException("You have been silenced this round");
+                }
             }
             case MAFIA -> {
                 if (player.getRole() != GamePlayer.Role.MAFIA) {

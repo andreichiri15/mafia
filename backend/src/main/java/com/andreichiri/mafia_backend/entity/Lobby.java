@@ -1,6 +1,5 @@
 package com.andreichiri.mafia_backend.entity;
 
-import jakarta.annotation.Nullable;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -38,6 +37,30 @@ public class Lobby {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    // Game configuration (host-editable, used at game start)
+    @Column(nullable = false)
+    private Integer mafiaCount = 1;
+
+    @Column(nullable = false)
+    private boolean includeSheriff = true;
+
+    @Column(nullable = false)
+    private boolean includeDoctor = false;
+
+    @Column(nullable = false)
+    private boolean includeJester = false;
+
+    @Column(nullable = false)
+    private boolean includeMutilator = false;
+
+    /** -1 means unlimited self-saves. */
+    @Column(nullable = false)
+    private Integer doctorSelfSaveLimit = -1;
+
+    /** Sheriff cannot investigate during the first N rounds. 0 = no delay. */
+    @Column(nullable = false)
+    private Integer sheriffInvestigationDelay = 0;
 
     @OneToMany(mappedBy = "lobby", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<LobbyPlayer> lobbyPlayers = new ArrayList<>();
@@ -143,4 +166,25 @@ public class Lobby {
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
+
+    public Integer getMafiaCount() { return mafiaCount; }
+    public void setMafiaCount(Integer mafiaCount) { this.mafiaCount = mafiaCount; }
+
+    public boolean isIncludeSheriff() { return includeSheriff; }
+    public void setIncludeSheriff(boolean includeSheriff) { this.includeSheriff = includeSheriff; }
+
+    public boolean isIncludeDoctor() { return includeDoctor; }
+    public void setIncludeDoctor(boolean includeDoctor) { this.includeDoctor = includeDoctor; }
+
+    public boolean isIncludeJester() { return includeJester; }
+    public void setIncludeJester(boolean includeJester) { this.includeJester = includeJester; }
+
+    public boolean isIncludeMutilator() { return includeMutilator; }
+    public void setIncludeMutilator(boolean includeMutilator) { this.includeMutilator = includeMutilator; }
+
+    public Integer getDoctorSelfSaveLimit() { return doctorSelfSaveLimit; }
+    public void setDoctorSelfSaveLimit(Integer doctorSelfSaveLimit) { this.doctorSelfSaveLimit = doctorSelfSaveLimit; }
+
+    public Integer getSheriffInvestigationDelay() { return sheriffInvestigationDelay; }
+    public void setSheriffInvestigationDelay(Integer sheriffInvestigationDelay) { this.sheriffInvestigationDelay = sheriffInvestigationDelay; }
 }

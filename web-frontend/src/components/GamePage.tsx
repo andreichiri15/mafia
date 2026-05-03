@@ -53,18 +53,8 @@ export function GamePage() {
     return () => unsubscribeGame();
   }, [gameId, user, subscribeGame, unsubscribeGame]);
 
-  const handleConfirmAction = () => {
+  const handleConfirmAction = (actionType: string) => {
     if (!selectedTarget || !gameState) return;
-
-    let actionType: string;
-    if (gameState.phase === "NIGHT") {
-      actionType = gameState.yourRole === "MAFIA" ? "MAFIA_KILL" : "INVESTIGATE";
-    } else if (gameState.phase === "VOTING") {
-      actionType = "VOTE";
-    } else {
-      return;
-    }
-
     submitAction(gameId, selectedTarget, actionType);
     setActionSubmitted(true);
     setSelectedTarget(null);

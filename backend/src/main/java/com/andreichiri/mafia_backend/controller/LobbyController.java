@@ -58,4 +58,23 @@ public class LobbyController {
     public ResponseEntity<?> toggleReady(@PathVariable Long id) {
         return lobbyService.toggleReady(id);
     }
+
+    @PutMapping("/{id}/settings")
+    public ResponseEntity<?> updateSettings(
+            @PathVariable Long id,
+            @RequestBody LobbyDTO.GameSettings settings
+    ) {
+        return lobbyService.updateSettings(id, settings);
+    }
+
+    @GetMapping("/invite/{token}")
+    public ResponseEntity<?> resolveInvite(@PathVariable String token) {
+        LobbyDTO.InviteResolution res = lobbyService.resolveInviteToken(token);
+        return res != null ? ResponseEntity.ok(res) : ResponseEntity.status(404).body("Invite not found");
+    }
+
+    @PostMapping("/{id}/invite/{friendUserId}")
+    public ResponseEntity<?> inviteFriend(@PathVariable Long id, @PathVariable Long friendUserId) {
+        return lobbyService.inviteFriend(id, friendUserId);
+    }
 }

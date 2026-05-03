@@ -3,6 +3,7 @@ import SockJS from "sockjs-client";
 
 let client: Client | null = null;
 let connectPromise: Promise<void> | null = null;
+let refCount = 0;
 
 function getToken(): string | null {
   const match = document.cookie.match(/(^| )jwt=([^;]+)/);
@@ -24,12 +25,40 @@ export function getStompClient(): Client {
   return client;
 }
 
-export function connectStomp(): Promise<void> {
+/**
+ * Acquire a connection to the STOMP broker. Each caller must release
+ * with `releaseStomp()` when done. The actual socket only closes when
+ * the reference count reaches zero.
+ */
+export function acquireStomp(): Promise<void> {
+  refCount++;
+  return connectStompInternal();
+}
+
+export function releaseStomp(): void {
+  refCount = Math.max(0, refCount - 1);
+  if (refCount === 0 && client) {
+    client.deactivate();
+    client = null;
+    connectPromise = null;
+  }
+}
+
+/** Force disconnect regardless of refcount (used on logout). */
+export function forceDisconnectStomp(): void {
+  refCount = 0;
+  if (client) {
+    client.deactivate();
+    client = null;
+    connectPromise = null;
+  }
+}
+
+function connectStompInternal(): Promise<void> {
   if (connectPromise) return connectPromise;
 
   const stomp = getStompClient();
 
-  // Update token in case it changed
   stomp.connectHeaders = {
     Authorization: `Bearer ${getToken()}`,
   };
@@ -53,13 +82,9 @@ export function connectStomp(): Promise<void> {
   return connectPromise;
 }
 
-export function disconnectStomp(): void {
-  if (client) {
-    client.deactivate();
-    client = null;
-    connectPromise = null;
-  }
-}
+// Backwards-compatible aliases (old call sites still use these names)
+export const connectStomp = acquireStomp;
+export const disconnectStomp = releaseStomp;
 
 export function subscribe(
   destination: string,

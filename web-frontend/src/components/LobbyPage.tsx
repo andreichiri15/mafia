@@ -14,6 +14,7 @@ import { useChatStore } from "../store/chatStore";
 import { useAuthStore } from "../store/authStore";
 import { useGameStore } from "../store/gameStore";
 import { sendMessage } from "../lib/websocket";
+import { GameSettingsPanel } from "./lobby/GameSettingsPanel";
 
 export function LobbyPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,7 +22,7 @@ export function LobbyPage() {
   const lobbyId = Number(id);
 
   const user = useAuthStore((s) => s.user);
-  const { currentLobby, loading, error, leaveLobby, toggleReady, subscribeLobby, unsubscribeLobby, startedGameId, clearStartedGameId } = useLobbyStore();
+  const { currentLobby, loading, error, leaveLobby, toggleReady, subscribeLobby, unsubscribeLobby, startedGameId, clearStartedGameId, updateSettings } = useLobbyStore();
   const startGame = useGameStore((s) => s.startGame);
   const messages = useChatStore((s) => s.messages);
 
@@ -29,7 +30,9 @@ export function LobbyPage() {
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
   const [starting, setStarting] = useState(false);
 
-  const inviteLink = `${window.location.origin}/lobby/${lobbyId}`;
+  const inviteLink = currentLobby?.inviteToken
+    ? `${window.location.origin}/invite/${currentLobby.inviteToken}`
+    : `${window.location.origin}/lobby/${lobbyId}`;
 
   useEffect(() => {
     if (!lobbyId) return;
@@ -103,7 +106,7 @@ export function LobbyPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 h-[calc(100vh-4rem)]">
-      <div className="grid lg:grid-cols-3 gap-6 h-full">
+      <div className="grid lg:grid-cols-4 gap-6 h-full">
         {/* Players Section */}
         <div className="lg:col-span-1">
           <Card className="h-full flex flex-col">
@@ -202,6 +205,16 @@ export function LobbyPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Settings Section */}
+        <div className="lg:col-span-1 overflow-y-auto">
+          <GameSettingsPanel
+            current={currentLobby.settings}
+            maxPlayers={currentLobby.maxPlayers}
+            isHost={!!isHost}
+            onSave={(s) => updateSettings(lobbyId, s)}
+          />
         </div>
 
         {/* Chat Section */}

@@ -30,10 +30,26 @@ public class GamePlayer {
     @Enumerated(EnumType.STRING)
     private DeathCause deathCause;
 
+    @Column(nullable = false)
+    private Integer selfHealsUsed = 0;
+
+    @Column
+    private Integer silencedUntilRound;
+
+    @Column
+    private Integer voteRevokedUntilRound;
+
     public enum Role {
         MAFIA,
         VILLAGER,
-        SHERIFF
+        SHERIFF,
+        DOCTOR,
+        JESTER,
+        MUTILATOR;
+
+        public boolean isMafiaSide() {
+            return this == MAFIA || this == MUTILATOR;
+        }
     }
 
     public enum DeathCause {
@@ -97,4 +113,13 @@ public class GamePlayer {
     public void setDeathCause(DeathCause deathCause) {
         this.deathCause = deathCause;
     }
+
+    public Integer getSelfHealsUsed() { return selfHealsUsed; }
+    public void setSelfHealsUsed(Integer selfHealsUsed) { this.selfHealsUsed = selfHealsUsed; }
+
+    public Integer getSilencedUntilRound() { return silencedUntilRound; }
+    public void setSilencedUntilRound(Integer silencedUntilRound) { this.silencedUntilRound = silencedUntilRound; }
+
+    public Integer getVoteRevokedUntilRound() { return voteRevokedUntilRound; }
+    public void setVoteRevokedUntilRound(Integer voteRevokedUntilRound) { this.voteRevokedUntilRound = voteRevokedUntilRound; }
 }

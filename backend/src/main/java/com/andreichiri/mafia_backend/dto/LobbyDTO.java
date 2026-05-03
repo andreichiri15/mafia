@@ -27,6 +27,16 @@ public class LobbyDTO {
             boolean isReady
     ) {}
 
+    public record GameSettings(
+            Integer mafiaCount,
+            boolean includeSheriff,
+            boolean includeDoctor,
+            boolean includeJester,
+            boolean includeMutilator,
+            Integer doctorSelfSaveLimit,
+            Integer sheriffInvestigationDelay
+    ) {}
+
     public record LobbyDetailResponse(
             Long lobbyId,
             String name,
@@ -36,7 +46,19 @@ public class LobbyDTO {
             boolean hasPassword,
             boolean isLocked,
             boolean publicLobby,
+            String inviteToken,
             List<PlayerInfo> players,
+            GameSettings settings,
             LocalDateTime createdAt
+    ) {}
+
+    public record InviteResolution(
+            Long lobbyId,
+            String name,
+            String hostname,
+            int currentPlayers,
+            int maxPlayers,
+            boolean isLocked,
+            boolean inGame
     ) {}
 }

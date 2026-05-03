@@ -23,6 +23,21 @@ const roleInfo: Record<Role, { title: string; description: string; color: string
     description: "You can investigate one player each night to learn if they are mafia. Use this knowledge to guide the town.",
     color: "text-yellow-500",
   },
+  DOCTOR: {
+    title: "Doctor",
+    description: "Each night, choose a player to protect. If the mafia attacks them, they survive. You may have a limit on self-saves.",
+    color: "text-emerald-500",
+  },
+  JESTER: {
+    title: "Jester",
+    description: "You win if the town votes you out. Cause chaos, act suspicious, but don't get killed by the mafia at night.",
+    color: "text-purple-500",
+  },
+  MUTILATOR: {
+    title: "Mutilator",
+    description: "You side with the mafia. Each night, pick a player and either silence them for the day or revoke their vote.",
+    color: "text-orange-500",
+  },
 };
 
 export function RoleCard({ role, onDismiss }: RoleCardProps) {

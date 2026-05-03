@@ -13,7 +13,12 @@ interface PlayerGridProps {
 
 export function PlayerGrid({ players, phase, yourRole, alive, selectedTarget, onSelectTarget }: PlayerGridProps) {
   const canTarget = alive && (
-    (phase === "NIGHT" && (yourRole === "MAFIA" || yourRole === "SHERIFF")) ||
+    (phase === "NIGHT" && (
+      yourRole === "MAFIA" ||
+      yourRole === "SHERIFF" ||
+      yourRole === "DOCTOR" ||
+      yourRole === "MUTILATOR"
+    )) ||
     phase === "VOTING"
   );
 
@@ -52,7 +57,14 @@ export function PlayerGrid({ players, phase, yourRole, alive, selectedTarget, on
               {player.username}
             </span>
             {player.role && (
-              <Badge variant={player.role === "MAFIA" ? "destructive" : "secondary"} className="text-xs">
+              <Badge
+                variant={
+                  player.role === "MAFIA" || player.role === "MUTILATOR"
+                    ? "destructive"
+                    : "secondary"
+                }
+                className="text-xs"
+              >
                 {player.role}
               </Badge>
             )}
