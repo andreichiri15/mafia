@@ -370,6 +370,7 @@ public class GameService {
     private void endGame(Game game, String winner) {
         game.setGamePhase(Game.GamePhase.GAME_OVER);
         game.setEndedAt(LocalDateTime.now());
+        game.setWinningTeam(winner);
         gameRepository.save(game);
 
         phaseTimerService.cancelTimer(game.getId());

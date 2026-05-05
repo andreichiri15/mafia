@@ -30,6 +30,10 @@ public class Game {
     @Column
     private LocalDateTime endedAt;
 
+    /** "MAFIA_WIN", "VILLAGER_WIN", "JESTER_WIN" — null while in progress. */
+    @Column
+    private String winningTeam;
+
     public enum GamePhase {
         NIGHT,
         DAY,
@@ -89,6 +93,14 @@ public class Game {
 
     public void setEndedAt(LocalDateTime endedAt) {
         this.endedAt = endedAt;
+    }
+
+    public String getWinningTeam() {
+        return winningTeam;
+    }
+
+    public void setWinningTeam(String winningTeam) {
+        this.winningTeam = winningTeam;
     }
 
     public List<GamePlayer> getGamePlayers() {

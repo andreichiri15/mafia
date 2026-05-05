@@ -57,6 +57,41 @@ export interface LobbyInvite {
   sentAt: string;
 }
 
+// Profile
+
+export interface RoleStats {
+  played: number;
+  won: number;
+  winRate: number;
+}
+
+export interface MatchHistoryEntry {
+  gameId: number;
+  lobbyName: string;
+  role: Role | null;
+  winningTeam: WinningTeam | null;
+  won: boolean;
+  alive: boolean;
+  deathCause: string | null;
+  startedAt: string;
+  endedAt: string;
+  durationSeconds: number;
+}
+
+export interface ProfileResponse {
+  userId: number;
+  username: string;
+  dateJoined: string;
+  totalGames: number;
+  totalWins: number;
+  winRate: number;
+  favoriteRole: Role | null;
+  survivalRate: number;
+  avgGameDurationSeconds: number;
+  roleStats: Record<string, RoleStats>;
+  matchHistory: MatchHistoryEntry[];
+}
+
 export interface CreateLobbyRequest {
   name: string;
   maxPlayers: number;

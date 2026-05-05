@@ -16,4 +16,7 @@ public interface GamePlayerRepository extends JpaRepository<GamePlayer, Long> {
 
     @Query("SELECT (count(gp) > 0) FROM GamePlayer gp WHERE gp.user.userId = :userId AND gp.game.gamePhase <> com.andreichiri.mafia_backend.entity.Game.GamePhase.GAME_OVER")
     boolean existsActiveByUserId(Long userId);
+
+    @Query("SELECT gp FROM GamePlayer gp WHERE gp.user.userId = :userId AND gp.game.winningTeam IS NOT NULL ORDER BY gp.game.startedAt DESC")
+    List<GamePlayer> findFinishedGamesByUserId(Long userId);
 }

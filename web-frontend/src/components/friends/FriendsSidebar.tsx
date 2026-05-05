@@ -59,9 +59,10 @@ export function FriendsSidebar({ open, onOpenChange }: FriendsSidebarProps) {
 
   const handleProfile = () => {
     if (!expandedFriendId) return;
+    const friendId = expandedFriendId;
     onOpenChange(false);
     setExpandedFriendId(null);
-    navigate("/profile"); // for now profile only shows the current user
+    navigate(`/profile/${friendId}`);
   };
 
   const handleOpenChat = (friend: FriendInfo) => {

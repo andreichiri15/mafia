@@ -58,6 +58,7 @@ export default function App() {
 						<Route path="/game/:id" element={<GamePage />} />
 						<Route path="/invite/:token" element={<InvitePage />} />
 						<Route path="/profile" element={<ProfilePage />} />
+						<Route path="/profile/:userId" element={<ProfilePage />} />
 						<Route path="/signin" element={<SignInPage />} />
 					</Routes>
 				</div>
