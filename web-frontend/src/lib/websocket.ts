@@ -1,5 +1,6 @@
 import { Client, IMessage, StompSubscription } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
+import { apiUrl } from "./api";
 
 let client: Client | null = null;
 let connectPromise: Promise<void> | null = null;
@@ -13,7 +14,7 @@ function getToken(): string | null {
 export function getStompClient(): Client {
   if (!client) {
     client = new Client({
-      webSocketFactory: () => new SockJS("/ws"),
+      webSocketFactory: () => new SockJS(apiUrl("/ws")),
       connectHeaders: {
         Authorization: `Bearer ${getToken()}`,
       },

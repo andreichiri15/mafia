@@ -1,3 +1,11 @@
+const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+/** Build a full backend URL by prepending VITE_API_URL when set. */
+export function apiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
 function getToken(): string | null {
   const match = document.cookie.match(/(^| )jwt=([^;]+)/);
   return match ? decodeURIComponent(match[2]) : null;
@@ -5,8 +13,6 @@ function getToken(): string | null {
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  console.log("[API]", options.method || "GET", url);
-  console.log("[API] Token:", token ? `${token.substring(0, 20)}...` : "NO TOKEN");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
@@ -15,7 +21,7 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, { ...options, headers });
+  const res = await fetch(apiUrl(url), { ...options, headers });
 
   if (!res.ok) {
     const text = await res.text();

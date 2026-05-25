@@ -5,6 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "./ui/card"
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { useAuthStore } from "../store/authStore";
+import { apiUrl } from "../lib/api";
 
 export default function SignInPage() {
     const [isRegister, setIsRegister] = useState(false);
@@ -31,7 +32,7 @@ export default function SignInPage() {
             : { identifier, password };
 
         try {
-            const res = await fetch(url, {
+            const res = await fetch(apiUrl(url), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
