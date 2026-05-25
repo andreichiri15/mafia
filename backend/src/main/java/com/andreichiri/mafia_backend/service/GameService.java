@@ -50,12 +50,38 @@ public class GameService {
             throw new RuntimeException("Only the host can start the game");
         }
 
-        if (lobby.getLobbyPlayers().size() < MIN_PLAYERS) {
+        int playerCount = lobby.getLobbyPlayers().size();
+        if (playerCount < MIN_PLAYERS) {
             throw new RuntimeException("Need at least " + MIN_PLAYERS + " players to start");
         }
 
         if (gameRepository.findByLobbyId(lobbyId).isPresent()) {
             throw new RuntimeException("Game already started for this lobby");
+        }
+
+        // Re-validate role distribution against the CURRENT player count.
+        // Settings were validated at save-time against maxPlayers, but the lobby may
+        // start with fewer players than that.
+        int mafiaCount = lobby.getMafiaCount() != null ? lobby.getMafiaCount() : 1;
+        int maxMafia = playerCount / 2 - 1;
+        if (mafiaCount < 1) {
+            throw new RuntimeException("At least 1 mafia member is required");
+        }
+        if (mafiaCount > maxMafia) {
+            throw new RuntimeException(
+                    "Too many mafia for " + playerCount + " players (max " + maxMafia + ")"
+            );
+        }
+
+        int specialCount = (lobby.isIncludeSheriff() ? 1 : 0)
+                + (lobby.isIncludeDoctor() ? 1 : 0)
+                + (lobby.isIncludeJester() ? 1 : 0)
+                + (lobby.isIncludeMutilator() ? 1 : 0);
+        int villagerCount = playerCount - mafiaCount - specialCount;
+        if (villagerCount < 1) {
+            throw new RuntimeException(
+                    "At least 1 villager is required — disable some special roles or wait for more players"
+            );
         }
 
         // Create game
@@ -94,9 +120,13 @@ public class GameService {
         // Send each player their initial state (includes role + phaseEndTime)
         broadcastPhaseChange(game);
 
+        // Bots take their first-night decisions (mafia kill, doctor heal, mutilator effect)
+        runBotActions(game);
+
         return startEvent;
     }
 
+    @Transactional(readOnly = true)
     public GameDTO.GameStateResponse getGameState(Long gameId, Long userId) {
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game not found"));
@@ -196,6 +226,9 @@ public class GameService {
 
         // Send updated state to each player (now includes the new phaseEndTime)
         broadcastPhaseChange(game);
+
+        // Let bots react to the new phase (mafia kill at night, vote in voting, etc.)
+        runBotActions(game);
     }
 
     private List<String> resolveNight(Game game) {
@@ -499,16 +532,24 @@ public class GameService {
         };
     }
 
+    private final java.util.Random rng = new java.util.Random();
+
     private Long getMajorityTarget(List<GameAction> actions) {
         if (actions.isEmpty()) return null;
 
         Map<Long, Long> counts = actions.stream()
                 .collect(Collectors.groupingBy(a -> a.getTarget().getUserId(), Collectors.counting()));
 
-        return counts.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
+        long maxCount = counts.values().stream().mapToLong(Long::longValue).max().orElse(0L);
+        List<Long> tied = counts.entrySet().stream()
+                .filter(e -> e.getValue() == maxCount)
                 .map(Map.Entry::getKey)
-                .orElse(null);
+                .toList();
+        if (tied.isEmpty()) return null;
+        if (tied.size() == 1) return tied.get(0);
+        // Random tiebreaker — applies to mafia kills when targets are split evenly.
+        // For voting, the caller separately detects the tie and aborts elimination.
+        return tied.get(rng.nextInt(tied.size()));
     }
 
     private GameDTO.GameStateResponse buildGameState(Game game, Long userId) {
@@ -563,8 +604,122 @@ public class GameService {
         Game game = gameRepository.findById(gameId).orElse(null);
         if (game == null || game.getGamePhase() == Game.GamePhase.GAME_OVER) return;
 
+        int duration = phaseDurationFor(game);
         // Use self-injected proxy so that the scheduled @Transactional call works
-        phaseTimerService.schedulePhaseEnd(gameId, game.getGamePhase(), () -> self.resolvePhase(gameId));
+        phaseTimerService.schedulePhaseEnd(gameId, duration, () -> self.resolvePhase(gameId));
+    }
+
+    /**
+     * Has each alive bot in the game submit an action appropriate to the current phase.
+     * Sheriff bots are intentionally inert (no actionable benefit from random investigation).
+     * Saves GameActions directly so we bypass per-action validation; the caller is
+     * expected to have just transitioned into a phase where these actions are legal.
+     */
+    private void runBotActions(Game game) {
+        Game.GamePhase phase = game.getGamePhase();
+        if (phase == Game.GamePhase.GAME_OVER || phase == Game.GamePhase.DAY) return;
+
+        List<GamePlayer> alive = game.getGamePlayers().stream()
+                .filter(GamePlayer::getAlive)
+                .toList();
+        List<GamePlayer> aliveBots = alive.stream()
+                .filter(gp -> gp.getUser() != null && gp.getUser().getIsBot())
+                .toList();
+        if (aliveBots.isEmpty()) return;
+
+        for (GamePlayer bot : aliveBots) {
+            switch (phase) {
+                case NIGHT -> nightBotAction(game, bot, alive);
+                case VOTING -> votingBotAction(game, bot, alive);
+                default -> {}
+            }
+        }
+
+        // If the bots' submissions complete the phase (e.g. nobody human is left to act),
+        // resolve immediately so we don't wait for the timer.
+        if (allActionsSubmitted(game)) {
+            phaseTimerService.cancelTimer(game.getId());
+            self.resolvePhase(game.getId());
+        }
+    }
+
+    private void nightBotAction(Game game, GamePlayer bot, List<GamePlayer> alive) {
+        Long botId = bot.getUser().getUserId();
+        switch (bot.getRole()) {
+            case MAFIA -> {
+                List<GamePlayer> candidates = alive.stream()
+                        .filter(p -> p.getRole() != GamePlayer.Role.MAFIA)
+                        .toList();
+                if (candidates.isEmpty()) return;
+                GamePlayer target = candidates.get(rng.nextInt(candidates.size()));
+                persistBotAction(game, bot, GameAction.ActionType.MAFIA_KILL, target);
+            }
+            case DOCTOR -> {
+                // Doctor may save themselves (subject to self-save limit)
+                int limit = game.getLobby().getDoctorSelfSaveLimit() != null
+                        ? game.getLobby().getDoctorSelfSaveLimit() : -1;
+                boolean canSelfHeal = limit < 0 || bot.getSelfHealsUsed() < limit;
+                List<GamePlayer> candidates = alive.stream()
+                        .filter(p -> canSelfHeal || !p.getUser().getUserId().equals(botId))
+                        .toList();
+                if (candidates.isEmpty()) return;
+                GamePlayer target = candidates.get(rng.nextInt(candidates.size()));
+                if (target.getUser().getUserId().equals(botId)) {
+                    bot.setSelfHealsUsed(bot.getSelfHealsUsed() + 1);
+                    gamePlayerRepository.save(bot);
+                }
+                persistBotAction(game, bot, GameAction.ActionType.HEALED, target);
+            }
+            case MUTILATOR -> {
+                List<GamePlayer> candidates = alive.stream()
+                        .filter(p -> !p.getUser().getUserId().equals(botId))
+                        .toList();
+                if (candidates.isEmpty()) return;
+                GamePlayer target = candidates.get(rng.nextInt(candidates.size()));
+                GameAction.ActionType type = rng.nextBoolean()
+                        ? GameAction.ActionType.MUTE
+                        : GameAction.ActionType.REVOKE_VOTE;
+                persistBotAction(game, bot, type, target);
+            }
+            case SHERIFF, VILLAGER, JESTER -> {
+                // No-op: random investigation gives no benefit; villager/jester have no night action
+            }
+        }
+    }
+
+    private void votingBotAction(Game game, GamePlayer bot, List<GamePlayer> alive) {
+        Long botId = bot.getUser().getUserId();
+        if (bot.getVoteRevokedUntilRound() != null
+                && bot.getVoteRevokedUntilRound() >= game.getCurrentRound()) return;
+
+        List<GamePlayer> candidates = alive.stream()
+                .filter(p -> !p.getUser().getUserId().equals(botId))
+                .toList();
+        if (candidates.isEmpty()) return;
+        GamePlayer target = candidates.get(rng.nextInt(candidates.size()));
+        persistBotAction(game, bot, GameAction.ActionType.VOTE, target);
+    }
+
+    private void persistBotAction(Game game, GamePlayer bot, GameAction.ActionType type, GamePlayer target) {
+        GameAction action = new GameAction();
+        action.setGame(game);
+        action.setRound(game.getCurrentRound());
+        action.setGamePhase(game.getGamePhase());
+        action.setActor(bot.getUser());
+        action.setTarget(target.getUser());
+        action.setActionType(type);
+        action.setExecutedAt(LocalDateTime.now());
+        gameActionRepository.save(action);
+    }
+
+    private int phaseDurationFor(Game game) {
+        Lobby lobby = game.getLobby();
+        return switch (game.getGamePhase()) {
+            case NIGHT -> lobby.getNightDurationSeconds() != null ? lobby.getNightDurationSeconds() : 30;
+            case DAY -> lobby.getDayDurationSeconds() != null ? lobby.getDayDurationSeconds() : 90;
+            case VOTING -> lobby.getVotingDurationSeconds() != null ? lobby.getVotingDurationSeconds() : 30;
+            case GAME_OVER -> 0;
+        };
     }
 
     private UserPrincipal getAuthenticatedUser() {

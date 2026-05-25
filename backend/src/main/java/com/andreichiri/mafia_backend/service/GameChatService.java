@@ -8,12 +8,17 @@ import com.andreichiri.mafia_backend.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
 public class GameChatService {
+
+    private static final int HISTORY_LIMIT = 200;
 
     @Autowired
     private GameRepository gameRepository;
@@ -26,6 +31,7 @@ public class GameChatService {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    @Transactional
     public void sendGameChat(Long gameId, Long userId, String content, String channel) {
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new RuntimeException("Game not found"));
@@ -94,5 +100,52 @@ public class GameChatService {
                 throw new RuntimeException("Lobby chat is not available during the game");
             }
         }
+    }
+
+    /**
+     * Returns the chat history grouped by channel, filtered to channels the
+     * caller is allowed to read.
+     *  - DAY: any participant (alive or dead)
+     *  - MAFIA: only mafia-team players (now or formerly mafia/mutilator)
+     *  - DEAD: only dead participants
+     */
+    @Transactional(readOnly = true)
+    public Map<String, List<Map<String, Object>>> getHistory(Long gameId, Long userId) {
+        GamePlayer player = gamePlayerRepository.findByGameIdAndUserId(gameId, userId)
+                .orElseThrow(() -> new RuntimeException("Not a participant in this game"));
+
+        Map<String, List<Map<String, Object>>> result = new LinkedHashMap<>();
+        result.put("day", channelHistory(gameId, Message.ChatChannel.DAY));
+
+        if (player.getRole() == GamePlayer.Role.MAFIA || player.getRole() == GamePlayer.Role.MUTILATOR) {
+            result.put("mafia", channelHistory(gameId, Message.ChatChannel.MAFIA));
+        } else {
+            result.put("mafia", List.of());
+        }
+
+        if (Boolean.FALSE.equals(player.getAlive())) {
+            result.put("dead", channelHistory(gameId, Message.ChatChannel.DEAD));
+        } else {
+            result.put("dead", List.of());
+        }
+
+        return result;
+    }
+
+    private List<Map<String, Object>> channelHistory(Long gameId, Message.ChatChannel channel) {
+        List<Message> all = messageRepository.findByGameIdAndChatChannel(gameId, channel);
+        all.sort((a, b) -> a.getSentAt().compareTo(b.getSentAt()));
+        int from = Math.max(0, all.size() - HISTORY_LIMIT);
+        return all.subList(from, all.size()).stream()
+                .map(m -> {
+                    Map<String, Object> map = new java.util.HashMap<>();
+                    map.put("id", m.getId());
+                    map.put("player", m.getSender() != null ? m.getSender().getUsername() : "(unknown)");
+                    map.put("message", m.getContent());
+                    map.put("timestamp", m.getSentAt() != null ? m.getSentAt().toString() : "");
+                    map.put("channel", m.getChatChannel().name());
+                    return map;
+                })
+                .toList();
     }
 }

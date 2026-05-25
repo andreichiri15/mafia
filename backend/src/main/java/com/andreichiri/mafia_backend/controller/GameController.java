@@ -2,11 +2,15 @@ package com.andreichiri.mafia_backend.controller;
 
 import com.andreichiri.mafia_backend.dto.GameDTO;
 import com.andreichiri.mafia_backend.security.UserPrincipal;
+import com.andreichiri.mafia_backend.service.GameChatService;
 import com.andreichiri.mafia_backend.service.GameService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -14,6 +18,8 @@ public class GameController {
 
     @Autowired
     private GameService gameService;
+    @Autowired
+    private GameChatService gameChatService;
 
     @PostMapping("/lobbies/{lobbyId}/start")
     public ResponseEntity<?> startGame(@PathVariable Long lobbyId) {
@@ -34,6 +40,18 @@ public class GameController {
             return ResponseEntity.ok(state);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/games/{gameId}/messages")
+    public ResponseEntity<?> getGameChatHistory(@PathVariable Long gameId) {
+        try {
+            UserPrincipal principal = (UserPrincipal) SecurityContextHolder.getContext()
+                    .getAuthentication().getPrincipal();
+            Map<String, List<Map<String, Object>>> history = gameChatService.getHistory(gameId, principal.userId());
+            return ResponseEntity.ok(history);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(403).body(e.getMessage());
         }
     }
 }

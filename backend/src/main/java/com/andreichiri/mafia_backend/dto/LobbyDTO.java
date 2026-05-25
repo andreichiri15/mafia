@@ -24,7 +24,8 @@ public class LobbyDTO {
             Long userId,
             String username,
             boolean isHost,
-            boolean isReady
+            boolean isReady,
+            boolean isBot
     ) {}
 
     public record GameSettings(
@@ -34,7 +35,10 @@ public class LobbyDTO {
             boolean includeJester,
             boolean includeMutilator,
             Integer doctorSelfSaveLimit,
-            Integer sheriffInvestigationDelay
+            Integer sheriffInvestigationDelay,
+            Integer nightDurationSeconds,
+            Integer dayDurationSeconds,
+            Integer votingDurationSeconds
     ) {}
 
     public record LobbyDetailResponse(

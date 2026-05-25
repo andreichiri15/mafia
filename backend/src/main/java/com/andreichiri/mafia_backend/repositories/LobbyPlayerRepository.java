@@ -12,4 +12,5 @@ public interface LobbyPlayerRepository extends JpaRepository<LobbyPlayer, Long> 
     boolean existsByLobbyIdAndUserUserId(Long lobbyId, Long userId);
     void deleteByLobbyIdAndUserUserId(Long lobbyId, Long userId);
     boolean existsByUserUserId(Long userId);
+    Optional<LobbyPlayer> findFirstByUserUserId(Long userId);
 }

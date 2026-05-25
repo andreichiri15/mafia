@@ -1,7 +1,7 @@
 package com.andreichiri.mafia_backend.controller;
 
 import com.andreichiri.mafia_backend.security.UserPrincipal;
-import com.andreichiri.mafia_backend.service.LobbyNotificationService;
+import com.andreichiri.mafia_backend.service.LobbyChatService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -9,16 +9,15 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
-import java.time.LocalDateTime;
 import java.util.Map;
 
 @Controller
 public class LobbyWebSocketController {
 
-    private final LobbyNotificationService notificationService;
+    private final LobbyChatService lobbyChatService;
 
-    public LobbyWebSocketController(LobbyNotificationService notificationService) {
-        this.notificationService = notificationService;
+    public LobbyWebSocketController(LobbyChatService lobbyChatService) {
+        this.lobbyChatService = lobbyChatService;
     }
 
     @MessageMapping("/lobby/{lobbyId}/chat")
@@ -28,13 +27,8 @@ public class LobbyWebSocketController {
             Principal principal
     ) {
         UserPrincipal user = extractUser(principal);
-        Map<String, Object> chatMessage = Map.of(
-                "id", System.currentTimeMillis(),
-                "player", user.username(),
-                "message", payload.getOrDefault("message", ""),
-                "timestamp", LocalDateTime.now().toString()
-        );
-        notificationService.broadcastChatMessage(lobbyId, chatMessage);
+        String content = payload.getOrDefault("message", "");
+        lobbyChatService.sendMessage(lobbyId, user.userId(), content);
     }
 
     private UserPrincipal extractUser(Principal principal) {

@@ -8,13 +8,15 @@ import { Badge } from "./ui/badge";
 import { ScrollArea } from "./ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Separator } from "./ui/separator";
-import { Users, Link as LinkIcon, Send, Copy, Check, LogOut, Loader2, CheckCircle } from "lucide-react";
+import { Users, Link as LinkIcon, Send, Copy, Check, LogOut, Loader2, CheckCircle, Bot, UserMinus, Plus } from "lucide-react";
 import { useLobbyStore } from "../store/lobbyStore";
 import { useChatStore } from "../store/chatStore";
 import { useAuthStore } from "../store/authStore";
 import { useGameStore } from "../store/gameStore";
 import { sendMessage } from "../lib/websocket";
+import { toast } from "sonner";
 import { GameSettingsPanel } from "./lobby/GameSettingsPanel";
+import { LobbyVoiceChat } from "./voice/LobbyVoiceChat";
 
 export function LobbyPage() {
   const { id } = useParams<{ id: string }>();
@@ -22,7 +24,7 @@ export function LobbyPage() {
   const lobbyId = Number(id);
 
   const user = useAuthStore((s) => s.user);
-  const { currentLobby, loading, error, leaveLobby, toggleReady, subscribeLobby, unsubscribeLobby, startedGameId, clearStartedGameId, updateSettings } = useLobbyStore();
+  const { currentLobby, loading, error, leaveLobby, toggleReady, subscribeLobby, unsubscribeLobby, startedGameId, clearStartedGameId, updateSettings, closed, addBot, removeBot } = useLobbyStore();
   const startGame = useGameStore((s) => s.startGame);
   const messages = useChatStore((s) => s.messages);
 
@@ -48,6 +50,14 @@ export function LobbyPage() {
       navigate(`/game/${id}`);
     }
   }, [startedGameId, navigate, clearStartedGameId]);
+
+  // Host closed the lobby — bounce to home with a notice
+  useEffect(() => {
+    if (closed) {
+      toast.info("The host closed the lobby");
+      navigate("/");
+    }
+  }, [closed, navigate]);
 
   const isHost = currentLobby?.players.some(
     (p) => p.userId === user?.userId && p.isHost
@@ -157,22 +167,48 @@ export function LobbyPage() {
                     <div key={player.userId} className="flex items-center justify-between p-2 rounded-lg hover:bg-accent">
                       <div className="flex items-center gap-3">
                         <Avatar>
-                          <AvatarFallback>{player.username[0].toUpperCase()}</AvatarFallback>
+                          <AvatarFallback>
+                            {player.isBot ? <Bot className="w-4 h-4" /> : player.username[0].toUpperCase()}
+                          </AvatarFallback>
                         </Avatar>
                         <div>
                           <div className="flex items-center gap-2">
                             <span>{player.username}</span>
                             {player.isHost && <Badge variant="secondary">Host</Badge>}
-                            {player.isReady && (
+                            {player.isBot && <Badge variant="outline">Bot</Badge>}
+                            {player.isReady && !player.isBot && (
                               <CheckCircle className="w-4 h-4 text-green-500" />
                             )}
                           </div>
                         </div>
                       </div>
+                      {isHost && player.isBot && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-red-500"
+                          title="Remove bot"
+                          onClick={() => removeBot(lobbyId, player.userId)}
+                        >
+                          <UserMinus className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
               </ScrollArea>
+
+              {isHost && currentLobby.currentPlayers < currentLobby.maxPlayers && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => addBot(lobbyId)}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Bot
+                </Button>
+              )}
 
               <div className="flex flex-col gap-2">
                 {myPlayer && !isHost && (
@@ -194,7 +230,8 @@ export function LobbyPage() {
                       try {
                         const event = await startGame(lobbyId);
                         navigate(`/game/${event.gameId}`);
-                      } catch {
+                      } catch (e) {
+                        toast.error((e as Error).message || "Couldn't start the game");
                         setStarting(false);
                       }
                     }}
@@ -202,6 +239,11 @@ export function LobbyPage() {
                     {starting ? "Starting..." : `Start Game${currentLobby.currentPlayers < 4 ? " (need 4+)" : ""}`}
                   </Button>
                 )}
+
+                {/* Voice chat — connects everyone in the lobby */}
+                <div className="pt-2 border-t flex justify-center">
+                  <LobbyVoiceChat lobbyId={lobbyId} />
+                </div>
               </div>
             </CardContent>
           </Card>

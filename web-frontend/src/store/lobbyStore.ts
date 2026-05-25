@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { api } from "../lib/api";
 import { connectStomp, disconnectStomp, subscribe } from "../lib/websocket";
-import { useChatStore } from "./chatStore";
+import { useChatStore, type ChatMessage } from "./chatStore";
 import type { LobbySummary, LobbyDetail, CreateLobbyRequest, GameSettings, InviteResolution } from "../lib/types";
 import type { StompSubscription } from "@stomp/stompjs";
 
@@ -12,6 +12,7 @@ interface LobbyState {
   error: string | null;
   subscriptions: StompSubscription[];
   startedGameId: number | null;
+  closed: boolean;
 
   fetchLobbies: (searchName?: string) => Promise<void>;
   createLobby: (request: CreateLobbyRequest) => Promise<LobbyDetail>;
@@ -22,6 +23,8 @@ interface LobbyState {
   updateSettings: (lobbyId: number, settings: GameSettings) => Promise<void>;
   resolveInvite: (token: string) => Promise<InviteResolution>;
   inviteFriend: (lobbyId: number, friendUserId: number) => Promise<void>;
+  addBot: (lobbyId: number) => Promise<void>;
+  removeBot: (lobbyId: number, botUserId: number) => Promise<void>;
   subscribeLobby: (lobbyId: number) => Promise<void>;
   unsubscribeLobby: () => void;
   clearStartedGameId: () => void;
@@ -34,6 +37,7 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
   error: null,
   subscriptions: [],
   startedGameId: null,
+  closed: false,
 
   fetchLobbies: async (searchName?: string) => {
     set({ loading: true, error: null });
@@ -116,6 +120,26 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
     await api.post(`/api/lobbies/${lobbyId}/invite/${friendUserId}`);
   },
 
+  addBot: async (lobbyId: number) => {
+    try {
+      const lobby = await api.post<LobbyDetail>(`/api/lobbies/${lobbyId}/bots`);
+      set({ currentLobby: lobby });
+    } catch (e) {
+      set({ error: (e as Error).message });
+      throw e;
+    }
+  },
+
+  removeBot: async (lobbyId: number, botUserId: number) => {
+    try {
+      const lobby = await api.delete<LobbyDetail>(`/api/lobbies/${lobbyId}/bots/${botUserId}`);
+      set({ currentLobby: lobby });
+    } catch (e) {
+      set({ error: (e as Error).message });
+      throw e;
+    }
+  },
+
   subscribeLobby: async (lobbyId: number) => {
     // Fetch initial data
     await get().fetchLobbyDetail(lobbyId);
@@ -136,12 +160,23 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
     });
     if (playerSub) subs.push(playerSub);
 
-    // Subscribe to chat messages
+    // Subscribe to chat messages BEFORE fetching history, so live messages
+    // arriving during the fetch aren't missed (dedup handles overlap)
     const chatSub = subscribe(`/topic/lobby/${lobbyId}/chat`, (message) => {
       const chatMsg = JSON.parse(message.body);
       useChatStore.getState().addMessage(chatMsg);
     });
     if (chatSub) subs.push(chatSub);
+
+    // Hydrate chat with persisted history
+    api
+      .get<ChatMessage[]>(`/api/lobbies/${lobbyId}/messages`)
+      .then((history) => {
+        history.forEach((m) => useChatStore.getState().addMessage(m));
+      })
+      .catch(() => {
+        // History fetch failed; live messages will still flow
+      });
 
     // Subscribe to game-start so all players can navigate when host starts
     const gameStartSub = subscribe(`/topic/lobby/${lobbyId}/game-start`, (message) => {
@@ -150,13 +185,19 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
     });
     if (gameStartSub) subs.push(gameStartSub);
 
+    // Subscribe to lobby-closed (host left) so we can redirect remaining players
+    const closedSub = subscribe(`/topic/lobby/${lobbyId}/closed`, () => {
+      set({ closed: true });
+    });
+    if (closedSub) subs.push(closedSub);
+
     set({ subscriptions: subs });
   },
 
   unsubscribeLobby: () => {
     const { subscriptions } = get();
     subscriptions.forEach((sub) => sub.unsubscribe());
-    set({ subscriptions: [], startedGameId: null });
+    set({ subscriptions: [], startedGameId: null, closed: false, currentLobby: null });
     useChatStore.getState().clearMessages();
     disconnectStomp();
   },

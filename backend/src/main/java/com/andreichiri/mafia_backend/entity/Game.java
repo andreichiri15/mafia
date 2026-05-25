@@ -47,6 +47,9 @@ public class Game {
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL)
     private List<GameAction> actions = new ArrayList<>();
 
+    @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Message> messages = new ArrayList<>();
+
     public Long getId() {
         return id;
     }
@@ -117,5 +120,13 @@ public class Game {
 
     public void setActions(List<GameAction> actions) {
         this.actions = actions;
+    }
+
+    public List<Message> getMessages() {
+        return messages;
+    }
+
+    public void setMessages(List<Message> messages) {
+        this.messages = messages;
     }
 }

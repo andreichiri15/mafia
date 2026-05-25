@@ -35,6 +35,9 @@ public class AuthService {
         if (user == null || !passwordEncoder.matches(request.password(), user.getPassword())) {
             return ResponseEntity.status(401).body("Invalid credentials");
         }
+        if (user.getIsBot()) {
+            return ResponseEntity.status(401).body("Invalid credentials");
+        }
 
         String token = jwtTokenProvider.generateToken(user.getUsername(), user.getUserId());
         return ResponseEntity.ok(new AuthResponse(token, user.getUserId(), user.getUsername()));

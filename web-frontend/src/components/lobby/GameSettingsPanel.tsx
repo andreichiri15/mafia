@@ -144,6 +144,35 @@ export function GameSettingsPanel({ current, maxPlayers, isHost, onSave }: GameS
           </div>
         )}
 
+        {/* Phase durations */}
+        <div className="space-y-2">
+          <Label className="text-sm">Phase Durations (seconds)</Label>
+          <div className="grid grid-cols-3 gap-2">
+            <DurationInput
+              id="nightDurationSeconds"
+              label="Night"
+              value={draft.nightDurationSeconds}
+              onChange={(v) => update("nightDurationSeconds", v)}
+              disabled={!isHost}
+            />
+            <DurationInput
+              id="dayDurationSeconds"
+              label="Day"
+              value={draft.dayDurationSeconds}
+              onChange={(v) => update("dayDurationSeconds", v)}
+              disabled={!isHost}
+            />
+            <DurationInput
+              id="votingDurationSeconds"
+              label="Voting"
+              value={draft.votingDurationSeconds}
+              onChange={(v) => update("votingDurationSeconds", v)}
+              disabled={!isHost}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">5–600 seconds per phase</p>
+        </div>
+
         {error && <p className="text-sm text-red-500">{error}</p>}
 
         {isHost && dirty && (
@@ -182,6 +211,36 @@ function RoleToggle({ label, description, checked, onChange, disabled }: RoleTog
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>
       <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
+    </div>
+  );
+}
+
+interface DurationInputProps {
+  id: string;
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  disabled: boolean;
+}
+
+function DurationInput({ id, label, value, onChange, disabled }: DurationInputProps) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="number"
+        min={5}
+        max={600}
+        value={value}
+        onChange={(e) => {
+          const v = parseInt(e.target.value);
+          if (!Number.isNaN(v)) onChange(Math.max(5, Math.min(600, v)));
+        }}
+        disabled={disabled}
+      />
     </div>
   );
 }

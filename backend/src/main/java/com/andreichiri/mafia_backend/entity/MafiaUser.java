@@ -29,6 +29,10 @@ public class MafiaUser {
     @Column(name = "dateJoined", nullable = false, updatable = false)
     private LocalDateTime dateJoined;
 
+    /** True for AI-controlled fill-in players. Bots cannot log in. */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private Boolean isBot = false;
+
     @PrePersist
     protected void onCreate() {
         this.dateJoined = LocalDateTime.now();
@@ -105,5 +109,13 @@ public class MafiaUser {
 
     public void setDateJoined(LocalDateTime dateJoined) {
         this.dateJoined = dateJoined;
+    }
+
+    public Boolean getIsBot() {
+        return isBot != null && isBot;
+    }
+
+    public void setIsBot(Boolean isBot) {
+        this.isBot = isBot;
     }
 }

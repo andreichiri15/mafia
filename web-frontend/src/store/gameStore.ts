@@ -16,6 +16,26 @@ interface GameChatMessages {
   dead: ChatMessage[];
 }
 
+type GameChannel = keyof GameChatMessages;
+
+/** Adds a chat message to a channel, deduping by id and sorting by timestamp. */
+function addChatMessage(
+  set: (fn: (state: GameStore) => Partial<GameStore>) => void,
+  channel: GameChannel,
+  msg: ChatMessage
+) {
+  set((state) => {
+    const existing = state.chatMessages[channel];
+    if (existing.some((m) => String(m.id) === String(msg.id))) return {};
+    const next = [...existing, msg].sort((a, b) =>
+      a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0
+    );
+    return {
+      chatMessages: { ...state.chatMessages, [channel]: next },
+    };
+  });
+}
+
 interface InvestigationResult {
   target: string;
   result: "MAFIA" | "NOT_MAFIA";
@@ -32,6 +52,7 @@ interface GameStore {
   subscriptions: StompSubscription[];
   loading: boolean;
   error: string | null;
+  closed: boolean;
 
   startGame: (lobbyId: number) => Promise<GameStartEvent>;
   fetchGameState: (gameId: number) => Promise<void>;
@@ -55,6 +76,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   subscriptions: [],
   loading: false,
   error: null,
+  closed: false,
 
   startGame: async (lobbyId: number) => {
     set({ loading: true, error: null });
@@ -112,6 +134,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
     if (gameOverSub) subs.push(gameOverSub);
 
+    // Game closed (host left mid-game) — redirect away
+    const closedSub = subscribe(`/topic/game/${gameId}/closed`, () => {
+      set({ closed: true });
+    });
+    if (closedSub) subs.push(closedSub);
+
     // Private channel (e.g. investigation results)
     const privateSub = subscribe(`/topic/game/${gameId}/private/${userId}`, (msg) => {
       const data = JSON.parse(msg.body);
@@ -121,20 +149,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
     if (privateSub) subs.push(privateSub);
 
-    // Chat channels
+    // Chat channels — subscribe FIRST so live messages aren't missed during history fetch
     const channels = ["day", "mafia", "dead"] as const;
     for (const channel of channels) {
       const chatSub = subscribe(`/topic/game/${gameId}/chat/${channel}`, (msg) => {
         const chatMsg: ChatMessage = JSON.parse(msg.body);
-        set((state) => ({
-          chatMessages: {
-            ...state.chatMessages,
-            [channel]: [...state.chatMessages[channel], chatMsg],
-          },
-        }));
+        addChatMessage(set, channel, chatMsg);
       });
       if (chatSub) subs.push(chatSub);
     }
+
+    // Hydrate chat history for the channels the player can see
+    api
+      .get<Record<"day" | "mafia" | "dead", ChatMessage[]>>(`/api/games/${gameId}/messages`)
+      .then((history) => {
+        for (const channel of channels) {
+          const list = history[channel];
+          if (Array.isArray(list)) {
+            list.forEach((m) => addChatMessage(set, channel, m));
+          }
+        }
+      })
+      .catch(() => {
+        // History fetch failed; live messages will still flow
+      });
 
     set({ subscriptions: subs });
   },
@@ -151,6 +189,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       showRoleReveal: false,
       showPhaseTransition: false,
       chatMessages: { day: [], mafia: [], dead: [] },
+      closed: false,
     });
     disconnectStomp();
   },

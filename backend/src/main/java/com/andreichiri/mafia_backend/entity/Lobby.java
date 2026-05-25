@@ -62,13 +62,23 @@ public class Lobby {
     @Column(nullable = false)
     private Integer sheriffInvestigationDelay = 0;
 
+    /** Phase durations (seconds) — defaults match the original hardcoded values. */
+    @Column(nullable = false)
+    private Integer nightDurationSeconds = 30;
+
+    @Column(nullable = false)
+    private Integer dayDurationSeconds = 90;
+
+    @Column(nullable = false)
+    private Integer votingDurationSeconds = 30;
+
     @OneToMany(mappedBy = "lobby", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<LobbyPlayer> lobbyPlayers = new ArrayList<>();
 
-    @OneToOne(mappedBy = "lobby")
+    @OneToOne(mappedBy = "lobby", cascade = CascadeType.ALL, orphanRemoval = true)
     private Game game;
 
-    @OneToMany(mappedBy = "lobby")
+    @OneToMany(mappedBy = "lobby", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Message> messages = new ArrayList<>();
 
     public Long getId() {
@@ -187,4 +197,13 @@ public class Lobby {
 
     public Integer getSheriffInvestigationDelay() { return sheriffInvestigationDelay; }
     public void setSheriffInvestigationDelay(Integer sheriffInvestigationDelay) { this.sheriffInvestigationDelay = sheriffInvestigationDelay; }
+
+    public Integer getNightDurationSeconds() { return nightDurationSeconds; }
+    public void setNightDurationSeconds(Integer nightDurationSeconds) { this.nightDurationSeconds = nightDurationSeconds; }
+
+    public Integer getDayDurationSeconds() { return dayDurationSeconds; }
+    public void setDayDurationSeconds(Integer dayDurationSeconds) { this.dayDurationSeconds = dayDurationSeconds; }
+
+    public Integer getVotingDurationSeconds() { return votingDurationSeconds; }
+    public void setVotingDurationSeconds(Integer votingDurationSeconds) { this.votingDurationSeconds = votingDurationSeconds; }
 }

@@ -38,6 +38,8 @@ public class LobbyService {
     private FriendshipRepository friendshipRepository;
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
+    @Autowired
+    private PhaseTimerService phaseTimerService;
 
     @Transactional(readOnly = true)
     public List<LobbySummaryReport> searchPublicLobbies(String searchName) {
@@ -203,10 +205,40 @@ public class LobbyService {
             return ResponseEntity.status(404).body("Lobby not found");
         }
 
-        // If the host leaves, delete the lobby
+        // If the host leaves, delete the lobby AND every piece of data associated with it
         if (lobby.getHost().getUserId().equals(principal.userId())) {
+            // Cancel any running phase timer before the game gets cascade-deleted,
+            // otherwise the scheduled callback would fire against a deleted game
+            if (lobby.getGame() != null) {
+                phaseTimerService.cancelTimer(lobby.getGame().getId());
+            }
+
+            // Collect bot user IDs so we can clean them up after the lobby is deleted
+            List<Long> botUserIds = lobby.getLobbyPlayers().stream()
+                    .filter(lp -> lp.getUser() != null && lp.getUser().getIsBot())
+                    .map(lp -> lp.getUser().getUserId())
+                    .collect(Collectors.toList());
+
             notificationService.broadcastSystemMessage(lobbyId, "Host left. Lobby closed.");
+            messagingTemplate.convertAndSend(
+                    "/topic/lobby/" + lobbyId + "/closed",
+                    Map.of("reason", "HOST_LEFT")
+            );
+            if (lobby.getGame() != null) {
+                messagingTemplate.convertAndSend(
+                        "/topic/game/" + lobby.getGame().getId() + "/closed",
+                        Map.of("reason", "HOST_LEFT")
+                );
+            }
+
+            // Cascade-deletes: lobbyPlayers, game (which cascades to gamePlayers,
+            // gameActions, game messages), lobby messages
             lobbyRepository.delete(lobby);
+
+            // Bots are throwaway MafiaUser rows — delete them so they don't pile up
+            if (!botUserIds.isEmpty()) {
+                userRepository.deleteAllById(botUserIds);
+            }
             return ResponseEntity.ok("Lobby deleted");
         }
 
@@ -225,6 +257,84 @@ public class LobbyService {
         notificationService.broadcastSystemMessage(lobbyId, lobbyPlayer.getUser().getUsername() + " left the lobby");
 
         return ResponseEntity.ok(detail);
+    }
+
+    @Transactional
+    public ResponseEntity<?> addBot(Long lobbyId) {
+        UserPrincipal principal = getAuthenticatedUser();
+        Lobby lobby = lobbyRepository.findById(lobbyId).orElse(null);
+        if (lobby == null) return ResponseEntity.status(404).body("Lobby not found");
+        if (!lobby.getHost().getUserId().equals(principal.userId())) {
+            return ResponseEntity.status(403).body("Only the host can add bots");
+        }
+        if (lobby.isLocked()) {
+            return ResponseEntity.status(400).body("Cannot add bots once the game has started");
+        }
+        if (lobby.getLobbyPlayers().size() >= lobby.getMaxPlayers()) {
+            return ResponseEntity.status(400).body("Lobby is full");
+        }
+
+        // Create the bot user with a unique readable username
+        MafiaUser bot = new MafiaUser();
+        bot.setUsername(generateUniqueBotUsername());
+        bot.setEmail("bot-" + UUID.randomUUID() + "@bot.local");
+        bot.setPassword(UUID.randomUUID().toString()); // not bcrypt-encoded, so login can never match
+        bot.setIsBot(true);
+        userRepository.save(bot);
+
+        LobbyPlayer lp = new LobbyPlayer();
+        lp.setLobby(lobby);
+        lp.setUser(bot);
+        lp.setReady(true); // bots are always ready
+        lp.setJoinedAt(LocalDateTime.now());
+        lobbyPlayerRepository.save(lp);
+        lobby.getLobbyPlayers().add(lp);
+
+        LobbyDTO.LobbyDetailResponse detail = toLobbyDetail(lobby);
+        notificationService.broadcastPlayerList(lobbyId, detail);
+        notificationService.broadcastSystemMessage(lobbyId, bot.getUsername() + " was added to the lobby");
+        return ResponseEntity.ok(detail);
+    }
+
+    @Transactional
+    public ResponseEntity<?> removeBot(Long lobbyId, Long botUserId) {
+        UserPrincipal principal = getAuthenticatedUser();
+        Lobby lobby = lobbyRepository.findById(lobbyId).orElse(null);
+        if (lobby == null) return ResponseEntity.status(404).body("Lobby not found");
+        if (!lobby.getHost().getUserId().equals(principal.userId())) {
+            return ResponseEntity.status(403).body("Only the host can remove bots");
+        }
+        if (lobby.isLocked()) {
+            return ResponseEntity.status(400).body("Cannot remove bots once the game has started");
+        }
+
+        LobbyPlayer lp = lobbyPlayerRepository
+                .findByLobbyIdAndUserUserId(lobbyId, botUserId)
+                .orElse(null);
+        if (lp == null) return ResponseEntity.status(404).body("Bot not in this lobby");
+        if (lp.getUser() == null || !lp.getUser().getIsBot()) {
+            return ResponseEntity.status(400).body("Target is not a bot");
+        }
+
+        String botName = lp.getUser().getUsername();
+        lobby.getLobbyPlayers().remove(lp);
+        lobbyPlayerRepository.delete(lp);
+        userRepository.deleteById(botUserId);
+
+        LobbyDTO.LobbyDetailResponse detail = toLobbyDetail(lobby);
+        notificationService.broadcastPlayerList(lobbyId, detail);
+        notificationService.broadcastSystemMessage(lobbyId, botName + " was removed from the lobby");
+        return ResponseEntity.ok(detail);
+    }
+
+    private String generateUniqueBotUsername() {
+        for (int i = 0; i < 20; i++) {
+            String suffix = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+            String candidate = "Bot-" + suffix;
+            if (!userRepository.existsByUsername(candidate)) return candidate;
+        }
+        // Vanishingly unlikely fallback
+        return "Bot-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
 
     @Transactional
@@ -286,6 +396,11 @@ public class LobbyService {
         Integer invDelay = settings.sheriffInvestigationDelay() == null ? 0 : settings.sheriffInvestigationDelay();
         if (invDelay < 0) invDelay = 0;
 
+        // Phase durations: clamp to [5, 600] seconds. Defaults preserve old hardcoded values.
+        int night = clampDuration(settings.nightDurationSeconds(), 30);
+        int day = clampDuration(settings.dayDurationSeconds(), 90);
+        int voting = clampDuration(settings.votingDurationSeconds(), 30);
+
         lobby.setMafiaCount(mafiaCount);
         lobby.setIncludeSheriff(settings.includeSheriff());
         lobby.setIncludeDoctor(settings.includeDoctor());
@@ -293,6 +408,9 @@ public class LobbyService {
         lobby.setIncludeMutilator(settings.includeMutilator());
         lobby.setDoctorSelfSaveLimit(selfSaveLimit);
         lobby.setSheriffInvestigationDelay(invDelay);
+        lobby.setNightDurationSeconds(night);
+        lobby.setDayDurationSeconds(day);
+        lobby.setVotingDurationSeconds(voting);
         lobbyRepository.save(lobby);
 
         // Reuse silent suppress for playerCount
@@ -310,7 +428,8 @@ public class LobbyService {
                         lp.getUser().getUserId(),
                         lp.getUser().getUsername(),
                         lp.getUser().getUserId().equals(lobby.getHost().getUserId()),
-                        lp.isReady()
+                        lp.isReady(),
+                        lp.getUser().getIsBot()
                 ))
                 .collect(Collectors.toList());
 
@@ -321,7 +440,10 @@ public class LobbyService {
                 lobby.isIncludeJester(),
                 lobby.isIncludeMutilator(),
                 lobby.getDoctorSelfSaveLimit(),
-                lobby.getSheriffInvestigationDelay()
+                lobby.getSheriffInvestigationDelay(),
+                lobby.getNightDurationSeconds(),
+                lobby.getDayDurationSeconds(),
+                lobby.getVotingDurationSeconds()
         );
 
         return new LobbyDTO.LobbyDetailResponse(
@@ -354,5 +476,12 @@ public class LobbyService {
     private UserPrincipal getAuthenticatedUser() {
         return (UserPrincipal) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
+    }
+
+    private int clampDuration(Integer value, int fallback) {
+        int v = value != null ? value : fallback;
+        if (v < 5) v = 5;
+        if (v > 600) v = 600;
+        return v;
     }
 }

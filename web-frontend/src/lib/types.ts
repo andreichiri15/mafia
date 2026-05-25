@@ -12,6 +12,7 @@ export interface PlayerInfo {
   username: string;
   isHost: boolean;
   isReady: boolean;
+  isBot: boolean;
 }
 
 export interface GameSettings {
@@ -22,6 +23,9 @@ export interface GameSettings {
   includeMutilator: boolean;
   doctorSelfSaveLimit: number; // -1 = unlimited
   sheriffInvestigationDelay: number;
+  nightDurationSeconds: number;
+  dayDurationSeconds: number;
+  votingDurationSeconds: number;
 }
 
 export interface LobbyDetail {
@@ -90,6 +94,25 @@ export interface ProfileResponse {
   avgGameDurationSeconds: number;
   roleStats: Record<string, RoleStats>;
   matchHistory: MatchHistoryEntry[];
+}
+
+export interface SessionInfo {
+  lobbyId: number;
+  lobbyName: string;
+  gameId: number | null;
+  gamePhase: GamePhase | null;
+  alive: boolean;
+}
+
+// LiveKit voice
+
+export type VoiceScope = "LOBBY" | "GAME_MAIN" | "GAME_MAFIA";
+
+export interface VoiceTokenResponse {
+  token: string;
+  url: string;
+  roomName: string;
+  canPublish: boolean;
 }
 
 export interface CreateLobbyRequest {

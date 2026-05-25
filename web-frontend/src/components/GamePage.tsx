@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { useGameStore } from "../store/gameStore";
 import { useAuthStore } from "../store/authStore";
@@ -12,6 +13,7 @@ import { GameChat } from "./game/GameChat";
 import { RoleCard } from "./game/RoleCard";
 import { PhaseTransition } from "./game/PhaseTransition";
 import { GameOverScreen } from "./game/GameOverScreen";
+import { GameVoiceChat } from "./voice/GameVoiceChat";
 
 export function GamePage() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +31,7 @@ export function GamePage() {
     chatMessages,
     loading,
     error,
+    closed,
     subscribeGame,
     unsubscribeGame,
     submitAction,
@@ -52,6 +55,14 @@ export function GamePage() {
     subscribeGame(gameId, user.userId);
     return () => unsubscribeGame();
   }, [gameId, user, subscribeGame, unsubscribeGame]);
+
+  // Host closed the lobby mid-game — bounce home
+  useEffect(() => {
+    if (closed) {
+      toast.info("The host closed the lobby");
+      navigate("/");
+    }
+  }, [closed, navigate]);
 
   const handleConfirmAction = (actionType: string) => {
     if (!selectedTarget || !gameState) return;
@@ -124,11 +135,16 @@ export function GamePage() {
 
       {/* Main layout */}
       <div className="container mx-auto px-4 py-4 h-[calc(100vh-4rem)] flex flex-col gap-4">
-        <PhaseHeader
-          phase={gameState.phase}
-          round={gameState.round}
-          phaseEndTime={gameState.phaseEndTime}
-        />
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <PhaseHeader
+              phase={gameState.phase}
+              round={gameState.round}
+              phaseEndTime={gameState.phaseEndTime}
+            />
+          </div>
+          <GameVoiceChat gameId={gameId} />
+        </div>
 
         <div className="flex-1 grid lg:grid-cols-3 gap-4 min-h-0">
           {/* Left: Players + Actions */}
