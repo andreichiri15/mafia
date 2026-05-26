@@ -35,8 +35,6 @@ target/
 *.ear
 
 # Application properties (sensitive config)
-application.properties
-application-*.properties
 *.env
 
 # Maven
