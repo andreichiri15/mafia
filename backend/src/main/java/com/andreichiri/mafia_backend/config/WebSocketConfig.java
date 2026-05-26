@@ -24,8 +24,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // SockJS has its own CORS check separate from HttpSecurity — must list
+        // every browser origin allowed to open the WebSocket handshake.
         registry.addEndpoint("/ws")
-                .setAllowedOrigins("http://localhost:3000")
+                .setAllowedOrigins(
+                        "http://localhost:3000",
+                        "https://mymafiagame.com"
+                )
                 .withSockJS();
     }
 
