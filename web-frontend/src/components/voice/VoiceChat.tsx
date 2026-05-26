@@ -1,9 +1,15 @@
 import { useEffect, useState } from "react";
-import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant } from "@livekit/components-react";
+import {
+  LiveKitRoom,
+  RoomAudioRenderer,
+  useLocalParticipant,
+  useSpeakingParticipants,
+} from "@livekit/components-react";
 import { Button } from "../ui/button";
 import { Mic, MicOff, Volume2, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
+import { useVoiceStore } from "../../store/voiceStore";
 import type { VoiceScope, VoiceTokenResponse } from "../../lib/types";
 
 interface VoiceChatProps {
@@ -26,15 +32,6 @@ interface TokenState {
   canPublish: boolean;
 }
 
-/**
- * Generic voice-chat component. Fetches a LiveKit token for the given (scope, id),
- * connects to the room (audio-only), and exposes a mute toggle.
- *
- * The component re-fetches the token whenever (scope, id) changes — that's how we
- * cleanly switch a mafia player between the main and mafia rooms when the phase
- * flips. Re-mounting the inner LiveKitRoom by keying on scope+id ensures a clean
- * disconnect from the previous room.
- */
 export function VoiceChat({ scope, id, permissionsKey, active = true }: VoiceChatProps) {
   const [tokenState, setTokenState] = useState<TokenState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,9 +105,37 @@ export function VoiceChat({ scope, id, permissionsKey, active = true }: VoiceCha
       }}
     >
       <RoomAudioRenderer />
+      <SpeakingTracker />
       <VoiceControls canPublish={tokenState.canPublish} />
     </LiveKitRoom>
   );
+}
+
+/**
+ * Lives inside the LiveKit context; publishes speaking-state into voiceStore
+ * so player UIs can render a ring around speaking avatars.
+ */
+function SpeakingTracker() {
+  const speakers = useSpeakingParticipants();
+  const setSpeakingUserIds = useVoiceStore((s) => s.setSpeakingUserIds);
+
+  useEffect(() => {
+    const ids = new Set<number>();
+    for (const p of speakers) {
+      const id = parseInt(p.identity, 10);
+      if (!Number.isNaN(id)) ids.add(id);
+    }
+    setSpeakingUserIds(ids);
+  }, [speakers, setSpeakingUserIds]);
+
+  // Clear when the voice component unmounts (e.g. user leaves the page)
+  useEffect(() => {
+    return () => {
+      setSpeakingUserIds(new Set());
+    };
+  }, [setSpeakingUserIds]);
+
+  return null;
 }
 
 interface VoiceControlsProps {
@@ -119,25 +144,21 @@ interface VoiceControlsProps {
 
 function VoiceControls({ canPublish }: VoiceControlsProps) {
   const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
-  const [busy, setBusy] = useState(false);
+  const userWantsMuted = useVoiceStore((s) => s.userWantsMuted);
+  const setUserWantsMuted = useVoiceStore((s) => s.setUserWantsMuted);
 
-  // If the server says we can't publish, ensure mic is disabled
+  // Single source of truth: actual mic state = canPublish AND user wants it on.
+  // This effect reconciles after any of: room (re)connect, permission change, user toggle.
   useEffect(() => {
-    if (!canPublish && isMicrophoneEnabled) {
-      localParticipant.setMicrophoneEnabled(false).catch(() => {});
+    const shouldBeOn = canPublish && !userWantsMuted;
+    if (isMicrophoneEnabled !== shouldBeOn) {
+      localParticipant.setMicrophoneEnabled(shouldBeOn).catch(() => {});
     }
-  }, [canPublish, isMicrophoneEnabled, localParticipant]);
+  }, [canPublish, userWantsMuted, isMicrophoneEnabled, localParticipant]);
 
-  const toggleMic = async () => {
-    if (!canPublish || busy) return;
-    setBusy(true);
-    try {
-      await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
-    } catch (e) {
-      toast.error(`Could not toggle microphone: ${(e as Error).message}`);
-    } finally {
-      setBusy(false);
-    }
+  const toggleMic = () => {
+    if (!canPublish) return; // server forbids publishing — can't unmute
+    setUserWantsMuted(!userWantsMuted);
   };
 
   if (!canPublish) {
@@ -149,15 +170,16 @@ function VoiceControls({ canPublish }: VoiceControlsProps) {
     );
   }
 
+  const micOn = !userWantsMuted;
+
   return (
     <Button
       size="sm"
-      variant={isMicrophoneEnabled ? "default" : "outline"}
+      variant={micOn ? "default" : "outline"}
       onClick={toggleMic}
-      disabled={busy}
       className="h-8"
     >
-      {isMicrophoneEnabled ? (
+      {micOn ? (
         <>
           <Mic className="w-4 h-4 mr-2" />
           Mic on

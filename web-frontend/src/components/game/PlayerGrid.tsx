@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Badge } from "../ui/badge";
+import { useVoiceStore } from "../../store/voiceStore";
 import type { GamePlayerInfo, GamePhase, Role } from "../../lib/types";
 
 interface PlayerGridProps {
@@ -12,6 +13,7 @@ interface PlayerGridProps {
 }
 
 export function PlayerGrid({ players, phase, yourRole, alive, selectedTarget, onSelectTarget }: PlayerGridProps) {
+  const speakingUserIds = useVoiceStore((s) => s.speakingUserIds);
   const canTarget = alive && (
     (phase === "NIGHT" && (
       yourRole === "MAFIA" ||
@@ -42,7 +44,13 @@ export function PlayerGrid({ players, phase, yourRole, alive, selectedTarget, on
             `}
           >
             <div className="relative">
-              <Avatar className="w-12 h-12">
+              <Avatar
+                className={`w-12 h-12 transition-shadow ${
+                  speakingUserIds.has(player.userId)
+                    ? "ring-2 ring-green-400 ring-offset-2 ring-offset-background"
+                    : ""
+                }`}
+              >
                 <AvatarFallback className={isDead ? "bg-muted" : ""}>
                   {player.username[0].toUpperCase()}
                 </AvatarFallback>

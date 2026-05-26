@@ -17,6 +17,7 @@ import { sendMessage } from "../lib/websocket";
 import { toast } from "sonner";
 import { GameSettingsPanel } from "./lobby/GameSettingsPanel";
 import { LobbyVoiceChat } from "./voice/LobbyVoiceChat";
+import { useVoiceStore } from "../store/voiceStore";
 
 export function LobbyPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +26,7 @@ export function LobbyPage() {
 
   const user = useAuthStore((s) => s.user);
   const { currentLobby, loading, error, leaveLobby, toggleReady, subscribeLobby, unsubscribeLobby, startedGameId, clearStartedGameId, updateSettings, closed, addBot, removeBot } = useLobbyStore();
+  const speakingUserIds = useVoiceStore((s) => s.speakingUserIds);
   const startGame = useGameStore((s) => s.startGame);
   const messages = useChatStore((s) => s.messages);
 
@@ -166,7 +168,13 @@ export function LobbyPage() {
                   {currentLobby.players.map((player) => (
                     <div key={player.userId} className="flex items-center justify-between p-2 rounded-lg hover:bg-accent">
                       <div className="flex items-center gap-3">
-                        <Avatar>
+                        <Avatar
+                          className={
+                            speakingUserIds.has(player.userId)
+                              ? "ring-2 ring-green-400 ring-offset-2 ring-offset-background"
+                              : ""
+                          }
+                        >
                           <AvatarFallback>
                             {player.isBot ? <Bot className="w-4 h-4" /> : player.username[0].toUpperCase()}
                           </AvatarFallback>
