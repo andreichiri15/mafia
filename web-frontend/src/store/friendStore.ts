@@ -94,10 +94,11 @@ export const useFriendStore = create<FriendStore>((set, get) => ({
       fetchRequests();
     });
 
-    // Poll for status changes (cheap and good enough)
+    // Poll for status changes — 15s is responsive enough for presence
+    // (in-game/in-lobby/online) without thrashing the DB.
     const pollId = setInterval(() => {
       fetchFriends();
-    }, 8000);
+    }, 15000);
 
     set({ refreshSubscription: sub, pollIntervalId: pollId });
   },

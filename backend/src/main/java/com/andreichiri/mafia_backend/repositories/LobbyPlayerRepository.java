@@ -2,8 +2,11 @@ package com.andreichiri.mafia_backend.repositories;
 
 import com.andreichiri.mafia_backend.entity.LobbyPlayer;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -13,4 +16,8 @@ public interface LobbyPlayerRepository extends JpaRepository<LobbyPlayer, Long> 
     void deleteByLobbyIdAndUserUserId(Long lobbyId, Long userId);
     boolean existsByUserUserId(Long userId);
     Optional<LobbyPlayer> findFirstByUserUserId(Long userId);
+
+    /** Returns the subset of provided user IDs that are currently in some lobby. */
+    @Query("SELECT DISTINCT lp.user.userId FROM LobbyPlayer lp WHERE lp.user.userId IN :userIds")
+    List<Long> findUserIdsInLobbies(Collection<Long> userIds);
 }

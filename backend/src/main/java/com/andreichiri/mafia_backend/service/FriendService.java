@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,18 +36,34 @@ public class FriendService {
 
     @Transactional(readOnly = true)
     public List<FriendDTO.FriendInfo> listFriends(Long userId) {
-        return friendshipRepository.findAcceptedByUser(userId).stream()
-                .map(f -> {
-                    MafiaUser other = f.getRequester().getUserId().equals(userId)
-                            ? f.getAddressee()
-                            : f.getRequester();
-                    return new FriendDTO.FriendInfo(
-                            other.getUserId(),
-                            other.getUsername(),
-                            getPresenceStatus(other.getUserId())
-                    );
-                })
+        // 1 query: pick out (otherUserId, otherUsername) per accepted friendship
+        // — no MafiaUser entity loaded, no password column read.
+        List<com.andreichiri.mafia_backend.dto.FriendBasicView> friends =
+                friendshipRepository.findAcceptedFriendsBasic(userId);
+        if (friends.isEmpty()) return List.of();
+
+        Set<Long> friendIds = friends.stream()
+                .map(com.andreichiri.mafia_backend.dto.FriendBasicView::userId)
+                .collect(Collectors.toSet());
+
+        // 2 batched queries: which friends are in a lobby / active game right now
+        Set<Long> inLobby = new java.util.HashSet<>(lobbyPlayerRepository.findUserIdsInLobbies(friendIds));
+        Set<Long> inGame = new java.util.HashSet<>(gamePlayerRepository.findUserIdsInActiveGames(friendIds));
+
+        return friends.stream()
+                .map(f -> new FriendDTO.FriendInfo(
+                        f.userId(),
+                        f.username(),
+                        resolvePresence(f.userId(), inLobby, inGame)
+                ))
                 .collect(Collectors.toList());
+    }
+
+    private FriendDTO.PresenceStatus resolvePresence(Long userId, Set<Long> inLobby, Set<Long> inGame) {
+        if (inGame.contains(userId)) return FriendDTO.PresenceStatus.IN_GAME;
+        if (inLobby.contains(userId)) return FriendDTO.PresenceStatus.IN_LOBBY;
+        if (userRegistry.getUser(userId.toString()) != null) return FriendDTO.PresenceStatus.ONLINE;
+        return FriendDTO.PresenceStatus.OFFLINE;
     }
 
     @Transactional(readOnly = true)

@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,4 +20,9 @@ public interface GamePlayerRepository extends JpaRepository<GamePlayer, Long> {
 
     @Query("SELECT gp FROM GamePlayer gp WHERE gp.user.userId = :userId AND gp.game.winningTeam IS NOT NULL ORDER BY gp.game.startedAt DESC")
     List<GamePlayer> findFinishedGamesByUserId(Long userId);
+
+    /** Returns the subset of provided user IDs that are currently in an active (non-GAME_OVER) game. */
+    @Query("SELECT DISTINCT gp.user.userId FROM GamePlayer gp WHERE gp.user.userId IN :userIds " +
+            "AND gp.game.gamePhase <> com.andreichiri.mafia_backend.entity.Game.GamePhase.GAME_OVER")
+    List<Long> findUserIdsInActiveGames(Collection<Long> userIds);
 }

@@ -27,9 +27,31 @@ function deleteCookie(name: string) {
     document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
 }
 
+function readUserFromCookie(): User | null {
+    const token = getCookie('jwt');
+    if (!token) return null;
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const isExpired = payload.exp * 1000 < Date.now();
+        if (isExpired) {
+            deleteCookie('jwt');
+            return null;
+        }
+        return { userId: Number(payload.sub), username: payload.username };
+    } catch {
+        deleteCookie('jwt');
+        return null;
+    }
+}
+
+// Resolve auth state synchronously at module load, so the first render of
+// route guards already knows whether the user is signed in (no flicker / no
+// false redirect on page refresh).
+const initialUser = readUserFromCookie();
+
 export const useAuthStore = create<AuthState>((set) => ({
-    isLoggedIn: false,
-    user: null,
+    isLoggedIn: initialUser !== null,
+    user: initialUser,
 
     login: (token: string, user: User) => {
         setCookie('jwt', token, 1);
@@ -42,22 +64,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     },
 
     initialize: () => {
-        const token = getCookie('jwt');
-        if (token) {
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                const isExpired = payload.exp * 1000 < Date.now();
-                if (!isExpired) {
-                    set({
-                        isLoggedIn: true,
-                        user: { userId: Number(payload.sub), username: payload.username },
-                    });
-                } else {
-                    deleteCookie('jwt');
-                }
-            } catch {
-                deleteCookie('jwt');
-            }
-        }
+        // Kept for compatibility / re-sync after manual cookie changes.
+        const u = readUserFromCookie();
+        set({ isLoggedIn: u !== null, user: u });
     },
 }))

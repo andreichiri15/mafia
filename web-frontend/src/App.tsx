@@ -8,6 +8,7 @@ import { GamePage } from "./components/GamePage";
 import { ProfilePage } from "./components/ProfilePage";
 import { InvitePage } from "./components/InvitePage";
 import { InviteListener } from "./components/InviteListener";
+import { RequireAuth } from "./components/RequireAuth";
 import SignInPage from "./components/SignInPage";
 import { Toaster } from "./components/ui/sonner";
 import { useAuthStore } from "./store/authStore";
@@ -53,13 +54,13 @@ export default function App() {
 				<div className="flex-1 overflow-auto">
 					<Routes>
 						<Route path="/" element={<HomePage />} />
-						<Route path="/play" element={<PlayPage />} />
-						<Route path="/lobby/:id" element={<LobbyPage />} />
-						<Route path="/game/:id" element={<GamePage />} />
-						<Route path="/invite/:token" element={<InvitePage />} />
-						<Route path="/profile" element={<ProfilePage />} />
-						<Route path="/profile/:userId" element={<ProfilePage />} />
 						<Route path="/signin" element={<SignInPage />} />
+						<Route path="/invite/:token" element={<InvitePage />} />
+						<Route path="/play" element={<RequireAuth><PlayPage /></RequireAuth>} />
+						<Route path="/lobby/:id" element={<RequireAuth><LobbyPage /></RequireAuth>} />
+						<Route path="/game/:id" element={<RequireAuth><GamePage /></RequireAuth>} />
+						<Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+						<Route path="/profile/:userId" element={<RequireAuth><ProfilePage /></RequireAuth>} />
 					</Routes>
 				</div>
 			</div>
