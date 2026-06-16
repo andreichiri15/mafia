@@ -47,7 +47,6 @@ public class LiveKitService {
         AccessToken token = new AccessToken(apiKey, apiSecret);
         token.setIdentity(identity);
         token.setName(displayName);
-        // Default TTL from the SDK is 6 hours, which fits a long lobby + game session
 
         token.addGrants(
                 new RoomJoin(true),

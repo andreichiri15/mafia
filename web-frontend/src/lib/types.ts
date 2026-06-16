@@ -86,6 +86,7 @@ export interface ProfileResponse {
   userId: number;
   username: string;
   dateJoined: string;
+  elo: number;
   totalGames: number;
   totalWins: number;
   winRate: number;
@@ -94,6 +95,26 @@ export interface ProfileResponse {
   avgGameDurationSeconds: number;
   roleStats: Record<string, RoleStats>;
   matchHistory: MatchHistoryEntry[];
+}
+
+// Ranked
+
+export interface QueueStatus {
+  inQueue: boolean;
+  queueSize: number;
+  enqueuedAtMs: number;
+  elo: number | null;
+  cooldownUntilMs: number | null;
+}
+
+export interface RankedMatchFoundEvent {
+  gameId: number;
+}
+
+export interface LeaderboardEntry {
+  userId: number;
+  username: string;
+  elo: number;
 }
 
 export interface SessionInfo {

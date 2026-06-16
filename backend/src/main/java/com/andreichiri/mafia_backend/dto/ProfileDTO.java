@@ -29,6 +29,7 @@ public class ProfileDTO {
             Long userId,
             String username,
             LocalDateTime dateJoined,
+            Integer elo,
             int totalGames,
             int totalWins,
             double winRate,

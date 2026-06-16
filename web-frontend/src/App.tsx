@@ -7,6 +7,7 @@ import { LobbyPage } from "./components/LobbyPage";
 import { GamePage } from "./components/GamePage";
 import { ProfilePage } from "./components/ProfilePage";
 import { InvitePage } from "./components/InvitePage";
+import { RankedPage } from "./components/RankedPage";
 import { InviteListener } from "./components/InviteListener";
 import { RequireAuth } from "./components/RequireAuth";
 import SignInPage from "./components/SignInPage";
@@ -57,6 +58,7 @@ export default function App() {
 						<Route path="/signin" element={<SignInPage />} />
 						<Route path="/invite/:token" element={<InvitePage />} />
 						<Route path="/play" element={<RequireAuth><PlayPage /></RequireAuth>} />
+						<Route path="/ranked" element={<RequireAuth><RankedPage /></RequireAuth>} />
 						<Route path="/lobby/:id" element={<RequireAuth><LobbyPage /></RequireAuth>} />
 						<Route path="/game/:id" element={<RequireAuth><GamePage /></RequireAuth>} />
 						<Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />

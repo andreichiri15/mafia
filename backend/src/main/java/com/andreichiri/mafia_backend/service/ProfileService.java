@@ -97,6 +97,7 @@ public class ProfileService {
                 user.getUserId(),
                 user.getUsername(),
                 user.getDateJoined(),
+                user.getElo(),
                 totalGames,
                 totalWins,
                 winRate,

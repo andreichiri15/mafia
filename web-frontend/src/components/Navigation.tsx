@@ -45,6 +45,14 @@ export function Navigation() {
                         >
                             <Link to="/play">Play</Link>
                         </Button>
+                        {isLoggedIn && (
+                            <Button
+                                asChild
+                                variant={location.pathname === "/ranked" ? "default" : "ghost"}
+                            >
+                                <Link to="/ranked">Ranked</Link>
+                            </Button>
+                        )}
 
                         {isLoggedIn && (
                             <Button

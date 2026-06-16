@@ -37,6 +37,8 @@ public class GameService {
     @Autowired
     @Lazy
     private GameService self;
+    @Autowired
+    private EloService eloService;
 
     private static final int MIN_PLAYERS = 4;
 
@@ -49,57 +51,54 @@ public class GameService {
         if (!lobby.getHost().getUserId().equals(principal.userId())) {
             throw new RuntimeException("Only the host can start the game");
         }
+        return startGameForLobby(lobby, false);
+    }
 
+    /**
+     * Internal entry-point used by the matchmaker to start a ranked game without
+     * an authenticated principal. Validates role distribution, creates Game +
+     * GamePlayers, kicks off the night timer, and broadcasts initial state.
+     */
+    @Transactional
+    public GameDTO.GameStartEvent startGameForLobby(Lobby lobby, boolean ranked) {
+        Long lobbyId = lobby.getId();
         int playerCount = lobby.getLobbyPlayers().size();
         if (playerCount < MIN_PLAYERS) {
             throw new RuntimeException("Need at least " + MIN_PLAYERS + " players to start");
         }
-
         if (gameRepository.findByLobbyId(lobbyId).isPresent()) {
             throw new RuntimeException("Game already started for this lobby");
         }
 
-        // Re-validate role distribution against the CURRENT player count.
-        // Settings were validated at save-time against maxPlayers, but the lobby may
-        // start with fewer players than that.
         int mafiaCount = lobby.getMafiaCount() != null ? lobby.getMafiaCount() : 1;
         int maxMafia = playerCount / 2 - 1;
         if (mafiaCount < 1) {
             throw new RuntimeException("At least 1 mafia member is required");
         }
         if (mafiaCount > maxMafia) {
-            throw new RuntimeException(
-                    "Too many mafia for " + playerCount + " players (max " + maxMafia + ")"
-            );
+            throw new RuntimeException("Too many mafia for " + playerCount + " players (max " + maxMafia + ")");
         }
-
         int specialCount = (lobby.isIncludeSheriff() ? 1 : 0)
                 + (lobby.isIncludeDoctor() ? 1 : 0)
                 + (lobby.isIncludeJester() ? 1 : 0)
                 + (lobby.isIncludeMutilator() ? 1 : 0);
-        int villagerCount = playerCount - mafiaCount - specialCount;
-        if (villagerCount < 1) {
-            throw new RuntimeException(
-                    "At least 1 villager is required — disable some special roles or wait for more players"
-            );
+        if (playerCount - mafiaCount - specialCount < 1) {
+            throw new RuntimeException("At least 1 villager is required — disable some special roles or wait for more players");
         }
 
-        // Create game
         Game game = new Game();
         game.setLobby(lobby);
         game.setCurrentRound(1);
         game.setGamePhase(Game.GamePhase.NIGHT);
         game.setStartedAt(LocalDateTime.now());
+        game.setRanked(ranked);
         gameRepository.save(game);
 
-        // Lock the lobby
         lobby.setLocked(true);
         lobbyRepository.save(lobby);
 
-        // Assign roles and create game players
         List<LobbyPlayer> lobbyPlayers = lobby.getLobbyPlayers();
         List<GamePlayer.Role> roles = roleAssignmentService.assignRoles(lobbyPlayers.size(), lobby);
-
         for (int i = 0; i < lobbyPlayers.size(); i++) {
             GamePlayer gp = new GamePlayer();
             gp.setGame(game);
@@ -110,19 +109,12 @@ public class GameService {
             game.getGamePlayers().add(gp);
         }
 
-        // Schedule night phase timer FIRST so all broadcast state has a valid phaseEndTime
         schedulePhaseTimer(game.getId());
 
-        // Notify all players about game start
         GameDTO.GameStartEvent startEvent = new GameDTO.GameStartEvent(game.getId(), lobbyId);
         messagingTemplate.convertAndSend("/topic/lobby/" + lobbyId + "/game-start", startEvent);
-
-        // Send each player their initial state (includes role + phaseEndTime)
         broadcastPhaseChange(game);
-
-        // Bots take their first-night decisions (mafia kill, doctor heal, mutilator effect)
         runBotActions(game);
-
         return startEvent;
     }
 
@@ -182,7 +174,6 @@ public class GameService {
         switch (game.getGamePhase()) {
             case NIGHT -> {
                 events = resolveNight(game);
-                // Check win condition after night
                 String winner = checkWinCondition(game);
                 if (winner != null) {
                     endGame(game, winner);
@@ -195,7 +186,6 @@ public class GameService {
             }
             case VOTING -> {
                 events = resolveVoting(game);
-                // Check win condition after voting
                 String winner = checkWinCondition(game);
                 if (winner != null) {
                     endGame(game, winner);
@@ -211,10 +201,8 @@ public class GameService {
 
         gameRepository.save(game);
 
-        // Schedule next phase timer FIRST so the broadcast state has a valid phaseEndTime
         schedulePhaseTimer(gameId);
 
-        // Broadcast phase result
         GameDTO.PhaseResultEvent phaseResult = new GameDTO.PhaseResultEvent(
                 game.getGamePhase(),
                 game.getCurrentRound(),
@@ -224,10 +212,8 @@ public class GameService {
         );
         messagingTemplate.convertAndSend("/topic/game/" + gameId + "/phase", phaseResult);
 
-        // Send updated state to each player (now includes the new phaseEndTime)
         broadcastPhaseChange(game);
 
-        // Let bots react to the new phase (mafia kill at night, vote in voting, etc.)
         runBotActions(game);
     }
 
@@ -382,7 +368,6 @@ public class GameService {
     }
 
     private String checkWinCondition(Game game) {
-        // Jester win takes precedence — checked when a player is voted out
         GamePlayer.Role votedOut = lastVotedOutRole.remove(game.getId());
         if (votedOut == GamePlayer.Role.JESTER) return "JESTER_WIN";
 
@@ -407,6 +392,11 @@ public class GameService {
         gameRepository.save(game);
 
         phaseTimerService.cancelTimer(game.getId());
+
+        // Apply ELO updates for ranked games
+        if (Boolean.TRUE.equals(game.getRanked())) {
+            applyEloAtGameEnd(game);
+        }
 
         // Build game over event with all roles revealed
         List<GameDTO.GamePlayerInfo> allPlayers = game.getGamePlayers().stream()
@@ -565,9 +555,9 @@ public class GameService {
                 .map(gp -> {
                     GamePlayer.Role visibleRole = null;
                     if (isGameOver) {
-                        visibleRole = gp.getRole(); // reveal all roles at game over
+                        visibleRole = gp.getRole();
                     } else if (isMafia && gp.getRole() == GamePlayer.Role.MAFIA) {
-                        visibleRole = GamePlayer.Role.MAFIA; // mafia see each other
+                        visibleRole = GamePlayer.Role.MAFIA;
                     }
                     return new GameDTO.GamePlayerInfo(
                             gp.getUser().getUserId(),
@@ -605,7 +595,7 @@ public class GameService {
         if (game == null || game.getGamePhase() == Game.GamePhase.GAME_OVER) return;
 
         int duration = phaseDurationFor(game);
-        // Use self-injected proxy so that the scheduled @Transactional call works
+        // self-injected proxy
         phaseTimerService.schedulePhaseEnd(gameId, duration, () -> self.resolvePhase(gameId));
     }
 
@@ -725,5 +715,32 @@ public class GameService {
     private UserPrincipal getAuthenticatedUser() {
         return (UserPrincipal) SecurityContextHolder.getContext()
                 .getAuthentication().getPrincipal();
+    }
+
+    /**
+     * For every player in this finished ranked game, compute and apply their ELO delta.
+     * Broadcasts a per-user event so the frontend can show the change immediately.
+     */
+    private void applyEloAtGameEnd(Game game) {
+        int maxRound = game.getCurrentRound() != null ? game.getCurrentRound() : 1;
+        for (GamePlayer gp : game.getGamePlayers()) {
+            if (gp.getUser() == null || Boolean.TRUE.equals(gp.getUser().getIsBot())) continue;
+            int delta = eloService.computeDelta(game, gp, maxRound);
+            int oldElo = gp.getUser().getElo();
+            int newElo = Math.max(0, oldElo + delta);
+            gp.getUser().setElo(newElo);
+            userRepository.save(gp.getUser());
+
+            messagingTemplate.convertAndSend(
+                    "/topic/user/" + gp.getUser().getUserId() + "/elo-update",
+                    java.util.Map.of(
+                            "gameId", game.getId(),
+                            "delta", delta,
+                            "newElo", newElo,
+                            "role", gp.getRole() != null ? gp.getRole().name() : null,
+                            "winningTeam", game.getWinningTeam()
+                    )
+            );
+        }
     }
 }

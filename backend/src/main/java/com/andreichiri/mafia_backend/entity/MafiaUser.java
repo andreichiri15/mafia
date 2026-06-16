@@ -33,6 +33,18 @@ public class MafiaUser {
     @Column(nullable = false, columnDefinition = "boolean default false")
     private Boolean isBot = false;
 
+    /** Ranked ELO (single global rating). Starts at 1000. */
+    @Column(nullable = false, columnDefinition = "integer default 1000")
+    private Integer elo = 1000;
+
+    /** True if the user can edit the ranked config. Flipped manually in DB for now. */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private Boolean isManager = false;
+
+    /** If set and in the future, the user can't join the ranked queue until this passes. */
+    @Column
+    private LocalDateTime rankedCooldownUntil;
+
     @PrePersist
     protected void onCreate() {
         this.dateJoined = LocalDateTime.now();
@@ -117,5 +129,29 @@ public class MafiaUser {
 
     public void setIsBot(Boolean isBot) {
         this.isBot = isBot;
+    }
+
+    public Integer getElo() {
+        return elo != null ? elo : 1000;
+    }
+
+    public void setElo(Integer elo) {
+        this.elo = elo;
+    }
+
+    public Boolean getIsManager() {
+        return isManager != null && isManager;
+    }
+
+    public void setIsManager(Boolean isManager) {
+        this.isManager = isManager;
+    }
+
+    public LocalDateTime getRankedCooldownUntil() {
+        return rankedCooldownUntil;
+    }
+
+    public void setRankedCooldownUntil(LocalDateTime rankedCooldownUntil) {
+        this.rankedCooldownUntil = rankedCooldownUntil;
     }
 }

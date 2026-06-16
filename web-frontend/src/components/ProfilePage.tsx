@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { ScrollArea } from "./ui/scroll-area";
-import { Trophy, Users, Target, Heart, Clock, Loader2 } from "lucide-react";
+import { Trophy, Users, Target, Heart, Clock, Loader2, Swords } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuthStore } from "../store/authStore";
 import type { ProfileResponse, Role, WinningTeam } from "../lib/types";
@@ -119,7 +119,12 @@ export function ProfilePage() {
         </Card>
 
         {/* Top-level stats */}
-        <div className="grid sm:grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid sm:grid-cols-2 md:grid-cols-6 gap-4">
+          <StatCard
+            icon={<Swords className="w-7 h-7 text-orange-500" />}
+            label="Ranked ELO"
+            value={(profile.elo ?? 1000).toString()}
+          />
           <StatCard
             icon={<Trophy className="w-7 h-7 text-yellow-500" />}
             label="Win Rate"

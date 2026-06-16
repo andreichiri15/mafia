@@ -100,6 +100,15 @@ export function VoiceChat({ scope, id, permissionsKey, active = true }: VoiceCha
       audio={tokenState.canPublish}
       video={false}
       connect
+      // Browser-native filters applied to every mic track the SDK creates —
+      // initial publish and any later setMicrophoneEnabled(true) calls all use these.
+      options={{
+        audioCaptureDefaults: {
+          noiseSuppression: true,
+          echoCancellation: true,
+          autoGainControl: true,
+        },
+      }}
       onError={(err) => {
         toast.error(`Voice error: ${err.message}`);
       }}

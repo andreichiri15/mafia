@@ -34,6 +34,10 @@ public class Game {
     @Column
     private String winningTeam;
 
+    /** True if this game came out of the ranked queue and should affect ELO. */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private Boolean ranked = false;
+
     public enum GamePhase {
         NIGHT,
         DAY,
@@ -104,6 +108,14 @@ public class Game {
 
     public void setWinningTeam(String winningTeam) {
         this.winningTeam = winningTeam;
+    }
+
+    public Boolean getRanked() {
+        return ranked != null && ranked;
+    }
+
+    public void setRanked(Boolean ranked) {
+        this.ranked = ranked;
     }
 
     public List<GamePlayer> getGamePlayers() {

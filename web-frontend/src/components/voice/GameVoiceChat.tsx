@@ -21,13 +21,11 @@ export function GameVoiceChat({ gameId }: GameVoiceChatProps) {
   const gameOver = useGameStore((s) => s.gameOver);
 
   if (!gameState) return null;
-  if (gameOver) return null; // disconnect voice once the game ends
+  if (gameOver) return null;
 
   const useMafiaRoom =
     gameState.phase === "NIGHT" && gameState.yourRole === "MAFIA";
 
-  // Bump this whenever the inputs to the backend's canPublish decision change,
-  // so the token is refreshed and the LiveKit server re-evaluates permissions.
   const permissionsKey = `${gameState.phase}-${gameState.alive ? "alive" : "dead"}`;
 
   return (
