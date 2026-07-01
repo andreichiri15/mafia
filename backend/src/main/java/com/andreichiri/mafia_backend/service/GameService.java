@@ -51,6 +51,19 @@ public class GameService {
         if (!lobby.getHost().getUserId().equals(principal.userId())) {
             throw new RuntimeException("Only the host can start the game");
         }
+
+        // Everyone except the host must be marked ready. Bots are ready by
+        // default (LobbyService.addBot). The host is exempt.
+        Long hostUserId = lobby.getHost().getUserId();
+        long notReady = lobby.getLobbyPlayers().stream()
+                .filter(lp -> lp.getUser() != null
+                        && !hostUserId.equals(lp.getUser().getUserId())
+                        && !lp.isReady())
+                .count();
+        if (notReady > 0) {
+            throw new RuntimeException("Cannot start: " + notReady + " player(s) not ready");
+        }
+
         return startGameForLobby(lobby, false);
     }
 
@@ -420,14 +433,16 @@ public class GameService {
         game.setEndedAt(LocalDateTime.now());
         game.setWinningTeam(winner);
 
-        // Dissociate from the lobby so the game record survives in the profile
-        // even after the lobby is later deleted (host leaves, etc.).
+        // Dissociate from the lobby so the game + its actions survive the
+        // lobby deletion at the end of this method.
         Lobby parentLobby = game.getLobby();
         if (parentLobby != null) {
             parentLobby.setGame(null);
             game.setLobby(null);
         }
-        gameRepository.save(game);
+        // Flush immediately so games.lobby_id is already NULL by the time we
+        // delete the lobbies row further down — otherwise the FK would block.
+        gameRepository.saveAndFlush(game);
 
         phaseTimerService.cancelTimer(game.getId());
 
@@ -448,6 +463,20 @@ public class GameService {
 
         GameDTO.GameOverEvent gameOver = new GameDTO.GameOverEvent(winner, allPlayers);
         messagingTemplate.convertAndSend("/topic/game/" + game.getId() + "/game-over", gameOver);
+
+        // Drop the lobby now that the game is over. Cascade cleans up
+        // LobbyPlayers and lobby-scoped chat; the Game (already dissociated),
+        // its GameActions, and game-scoped chat are all preserved. Bot
+        // MafiaUsers are deliberately kept because GamePlayers still point
+        // at them from the archived game record.
+        if (parentLobby != null) {
+            Long lobbyId = parentLobby.getId();
+            messagingTemplate.convertAndSend(
+                    "/topic/lobby/" + lobbyId + "/closed",
+                    Map.of("reason", "GAME_ENDED")
+            );
+            lobbyRepository.delete(parentLobby);
+        }
     }
 
     private void validateAction(Game game, GamePlayer actor, GameAction.ActionType actionType, Long targetUserId) {

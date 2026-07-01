@@ -19,4 +19,7 @@ public interface LobbyRepository extends JpaRepository<Lobby, Long> {
     Lobby getLobbyByIdAndPublicLobby(Long id, boolean publicLobby);
 
     java.util.Optional<Lobby> findByGeneratedLink(String token);
+
+    /** Lobbies hosted by this user that never entered a game — used by the disconnect cleanup path. */
+    List<Lobby> findByHostUserIdAndGameIsNull(Long userId);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -6,6 +6,8 @@ import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Settings, Save, Loader2 } from "lucide-react";
 import type { GameSettings } from "../../lib/types";
+
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 
 interface GameSettingsPanelProps {
   current: GameSettings;
@@ -35,8 +37,18 @@ export function GameSettingsPanel({ current, maxPlayers, isHost, onSave }: GameS
   const handleSave = async () => {
     setSaving(true);
     setError(null);
+    // Clamp everything to valid ranges only now, at save time, so typing
+    // intermediate digits (e.g. "4" on the way to "40") doesn't get overwritten.
+    const clamped: GameSettings = {
+      ...draft,
+      mafiaCount: clamp(draft.mafiaCount || 1, 1, maxMafia),
+      sheriffInvestigationDelay: Math.max(0, draft.sheriffInvestigationDelay || 0),
+      nightDurationSeconds: clamp(draft.nightDurationSeconds || 5, 5, 600),
+      dayDurationSeconds: clamp(draft.dayDurationSeconds || 5, 5, 600),
+      votingDurationSeconds: clamp(draft.votingDurationSeconds || 5, 5, 600),
+    };
     try {
-      await onSave(draft);
+      await onSave(clamped);
     } catch (e) {
       setError((e as Error).message || "Failed to save settings");
     } finally {
@@ -58,13 +70,10 @@ export function GameSettingsPanel({ current, maxPlayers, isHost, onSave }: GameS
           <Label htmlFor="mafiaCount" className="text-sm">
             Mafia members
           </Label>
-          <Input
+          <IntegerInput
             id="mafiaCount"
-            type="number"
-            min={1}
-            max={maxMafia}
             value={draft.mafiaCount}
-            onChange={(e) => update("mafiaCount", Math.max(1, Math.min(maxMafia, parseInt(e.target.value) || 1)))}
+            onChange={(v) => update("mafiaCount", v)}
             disabled={!isHost}
             className="w-24"
           />
@@ -129,14 +138,10 @@ export function GameSettingsPanel({ current, maxPlayers, isHost, onSave }: GameS
             <Label htmlFor="sheriffInvestigationDelay" className="text-sm">
               Sheriff investigation delay (rounds)
             </Label>
-            <Input
+            <IntegerInput
               id="sheriffInvestigationDelay"
-              type="number"
-              min={0}
               value={draft.sheriffInvestigationDelay}
-              onChange={(e) =>
-                update("sheriffInvestigationDelay", Math.max(0, parseInt(e.target.value) || 0))
-              }
+              onChange={(v) => update("sheriffInvestigationDelay", v)}
               disabled={!isHost}
               className="w-24"
             />
@@ -229,18 +234,53 @@ function DurationInput({ id, label, value, onChange, disabled }: DurationInputPr
       <Label htmlFor={id} className="text-xs text-muted-foreground">
         {label}
       </Label>
-      <Input
-        id={id}
-        type="number"
-        min={5}
-        max={600}
-        value={value}
-        onChange={(e) => {
-          const v = parseInt(e.target.value);
-          if (!Number.isNaN(v)) onChange(Math.max(5, Math.min(600, v)));
-        }}
-        disabled={disabled}
-      />
+      <IntegerInput id={id} value={value} onChange={onChange} disabled={disabled} />
     </div>
+  );
+}
+
+interface IntegerInputProps {
+  id: string;
+  value: number;
+  onChange: (v: number) => void;
+  disabled: boolean;
+  className?: string;
+}
+
+/**
+ * Digit-only text input that never clamps mid-typing. Holds the raw string
+ * locally so partial edits ("4" on the way to "40") aren't snapped to a min.
+ * The parent is expected to clamp on save.
+ */
+function IntegerInput({ id, value, onChange, disabled, className }: IntegerInputProps) {
+  const [text, setText] = useState<string>(String(value));
+  const lastEmittedRef = useRef<number>(value);
+
+  useEffect(() => {
+    // Only re-sync when the prop changed for a reason other than our own emit
+    // (e.g. remote settings update, form reset).
+    if (value !== lastEmittedRef.current) {
+      setText(String(value));
+      lastEmittedRef.current = value;
+    }
+  }, [value]);
+
+  return (
+    <Input
+      id={id}
+      type="text"
+      inputMode="numeric"
+      value={text}
+      className={className}
+      onChange={(e) => {
+        const raw = e.target.value;
+        if (raw !== "" && !/^\d+$/.test(raw)) return;
+        setText(raw);
+        const n = raw === "" ? 0 : parseInt(raw, 10);
+        lastEmittedRef.current = n;
+        onChange(n);
+      }}
+      disabled={disabled}
+    />
   );
 }

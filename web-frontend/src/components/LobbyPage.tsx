@@ -229,24 +229,34 @@ export function LobbyPage() {
                   </Button>
                 )}
 
-                {isHost && (
-                  <Button
-                    className="w-full"
-                    disabled={starting || (currentLobby.currentPlayers < 4)}
-                    onClick={async () => {
-                      setStarting(true);
-                      try {
-                        const event = await startGame(lobbyId);
-                        navigate(`/game/${event.gameId}`);
-                      } catch (e) {
-                        toast.error((e as Error).message || "Couldn't start the game");
-                        setStarting(false);
-                      }
-                    }}
-                  >
-                    {starting ? "Starting..." : `Start Game${currentLobby.currentPlayers < 4 ? " (need 4+)" : ""}`}
-                  </Button>
-                )}
+                {isHost && (() => {
+                  const notReady = currentLobby.players.filter((p) => !p.isHost && !p.isReady).length;
+                  const enoughPlayers = currentLobby.currentPlayers >= 4;
+                  const canStart = enoughPlayers && notReady === 0;
+                  const label = !enoughPlayers
+                    ? "Start Game (need 4+)"
+                    : notReady > 0
+                    ? `Start Game (${notReady} not ready)`
+                    : "Start Game";
+                  return (
+                    <Button
+                      className="w-full"
+                      disabled={starting || !canStart}
+                      onClick={async () => {
+                        setStarting(true);
+                        try {
+                          const event = await startGame(lobbyId);
+                          navigate(`/game/${event.gameId}`);
+                        } catch (e) {
+                          toast.error((e as Error).message || "Couldn't start the game");
+                          setStarting(false);
+                        }
+                      }}
+                    >
+                      {starting ? "Starting..." : label}
+                    </Button>
+                  );
+                })()}
 
                 {/* Voice chat — connects everyone in the lobby */}
                 <div className="pt-2 border-t flex justify-center">

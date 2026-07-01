@@ -1,22 +1,3 @@
-"""
-Simulare pentru evaluarea sistemului de rating Mafia.
-
-Compară ratingul hibrid (componenta de echipă + componenta individuală) cu
-varianta team-only, pe EXACT aceleași partide și rezultate, astfel încât
-diferența să provină doar din formulă.
-
-Reproduce fidel parametrii din EloService:
-  - factorul K pe rol
-  - scorul așteptat cu fallback până la >= 20 partide pe rol
-  - ponderea pe rundă
-  - clamp-ul scorului individual în [-1, 1]
-
-Metrici raportate:
-  1. corelația dintre rating și abilitatea adevărată (Pearson + Spearman)
-  2. convergența corelației în funcție de numărul de partide jucate
-  3. varianța ratingului pentru jucători cu abilitate similară (zgomot)
-  4. echilibrul rolurilor (delta medie per rol)
-"""
 import csv
 import numpy as np
 import matplotlib
