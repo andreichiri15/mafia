@@ -125,6 +125,36 @@ public class GameService {
         return buildGameState(game, userId);
     }
 
+    /**
+     * Action log for a finished game. Only participants may read it — non-participants
+     * shouldn't be able to mine action histories from arbitrary profile pages.
+     */
+    @Transactional(readOnly = true)
+    public List<GameDTO.GameActionEntry> getGameActionHistory(Long gameId, Long userId) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new RuntimeException("Game not found"));
+        if (game.getGamePhase() != Game.GamePhase.GAME_OVER) {
+            throw new RuntimeException("Game is still in progress");
+        }
+        boolean participated = gamePlayerRepository.findByGameIdAndUserId(gameId, userId).isPresent();
+        if (!participated) {
+            throw new RuntimeException("Not authorized to view this game's actions");
+        }
+        return gameActionRepository.findByGameId(gameId).stream()
+                .sorted(Comparator.comparing(GameAction::getExecutedAt))
+                .map(a -> new GameDTO.GameActionEntry(
+                        a.getId(),
+                        a.getRound(),
+                        a.getGamePhase(),
+                        a.getActor() != null ? a.getActor().getUsername() : null,
+                        a.getTarget() != null ? a.getTarget().getUsername() : null,
+                        a.getActionType(),
+                        a.getResult(),
+                        a.getExecutedAt()
+                ))
+                .toList();
+    }
+
     @Transactional
     public void submitAction(Long gameId, Long userId, GameAction.ActionType actionType, Long targetUserId) {
         Game game = gameRepository.findById(gameId)
@@ -389,6 +419,14 @@ public class GameService {
         game.setGamePhase(Game.GamePhase.GAME_OVER);
         game.setEndedAt(LocalDateTime.now());
         game.setWinningTeam(winner);
+
+        // Dissociate from the lobby so the game record survives in the profile
+        // even after the lobby is later deleted (host leaves, etc.).
+        Lobby parentLobby = game.getLobby();
+        if (parentLobby != null) {
+            parentLobby.setGame(null);
+            game.setLobby(null);
+        }
         gameRepository.save(game);
 
         phaseTimerService.cancelTimer(game.getId());

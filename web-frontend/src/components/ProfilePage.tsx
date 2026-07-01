@@ -3,12 +3,12 @@ import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { ScrollArea } from "./ui/scroll-area";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 import { Trophy, Users, Target, Heart, Clock, Loader2, Swords } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuthStore } from "../store/authStore";
-import type { ProfileResponse, Role, WinningTeam } from "../lib/types";
+import type { GameActionEntry, GamePhase, ProfileResponse, Role, WinningTeam } from "../lib/types";
 
 const roleColors: Record<Role, string> = {
   MAFIA: "text-red-500",
@@ -209,51 +209,51 @@ export function ProfilePage() {
             {profile.matchHistory.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">No completed games yet.</p>
             ) : (
-              <ScrollArea className="max-h-[500px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Lobby</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Winner</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Survived</TableHead>
-                      <TableHead className="text-right">Result</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {profile.matchHistory.map((m) => (
-                      <TableRow key={m.gameId}>
-                        <TableCell className="whitespace-nowrap">
-                          {new Date(m.endedAt || m.startedAt).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="max-w-[180px] truncate">{m.lobbyName}</TableCell>
-                        <TableCell>
-                          {m.role && (
-                            <span className={roleColors[m.role]}>{m.role}</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{m.winningTeam ? winLabel[m.winningTeam] : "—"}</TableCell>
-                        <TableCell>{formatDuration(m.durationSeconds)}</TableCell>
-                        <TableCell>
-                          {m.alive ? (
-                            <span className="text-green-500">Yes</span>
-                          ) : (
-                            <span className="text-muted-foreground">
-                              {m.deathCause ? m.deathCause.replace("_", " ").toLowerCase() : "no"}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant={m.won ? "default" : "destructive"}>
-                            {m.won ? "Win" : "Loss"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <ScrollArea className="max-h-[600px]">
+                <div className="hidden sm:grid grid-cols-[1.4fr_1.2fr_1fr_1fr_1.1fr_1fr_2rem] gap-3 px-3 pb-2 text-xs uppercase tracking-wide text-muted-foreground border-b">
+                  <span>Date</span>
+                  <span>Role</span>
+                  <span>Winner</span>
+                  <span>Duration</span>
+                  <span>Survived</span>
+                  <span>Result</span>
+                  <span></span>
+                </div>
+                <Accordion type="multiple">
+                  {profile.matchHistory.map((m) => (
+                    <AccordionItem key={m.gameId} value={String(m.gameId)}>
+                      <AccordionTrigger className="px-3 hover:no-underline">
+                        <div className="grid sm:grid-cols-[1.4fr_1.2fr_1fr_1fr_1.1fr_1fr] grid-cols-2 gap-3 flex-1 items-center">
+                          <span className="whitespace-nowrap text-sm">
+                            {new Date(m.endedAt || m.startedAt).toLocaleDateString()}
+                          </span>
+                          <span className={`text-sm ${m.role ? roleColors[m.role] : ""}`}>
+                            {m.role ?? "—"}
+                          </span>
+                          <span className="text-sm">{m.winningTeam ? winLabel[m.winningTeam] : "—"}</span>
+                          <span className="text-sm">{formatDuration(m.durationSeconds)}</span>
+                          <span className="text-sm">
+                            {m.alive ? (
+                              <span className="text-green-500">Yes</span>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                {m.deathCause ? m.deathCause.replace("_", " ").toLowerCase() : "no"}
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-sm">
+                            <Badge variant={m.won ? "default" : "destructive"}>
+                              {m.won ? "Win" : "Loss"}
+                            </Badge>
+                          </span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-3">
+                        <GameActionHistory gameId={m.gameId} />
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
               </ScrollArea>
             )}
           </CardContent>
@@ -285,5 +285,107 @@ function StatCard({ icon, label, value, sub, valueClass }: StatCardProps) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+const phaseLabel: Record<GamePhase, string> = {
+  NIGHT: "Night",
+  DAY: "Day",
+  VOTING: "Voting",
+  GAME_OVER: "End",
+};
+
+function describeAction(a: GameActionEntry): string {
+  const actor = a.actorUsername ?? "?";
+  const target = a.targetUsername ?? "?";
+  switch (a.actionType) {
+    case "VOTE":
+      return `${actor} voted for ${target}`;
+    case "MAFIA_KILL":
+      return `${actor} targeted ${target} for the mafia kill`;
+    case "HEALED":
+      return `${actor} (doctor) protected ${target}`;
+    case "INVESTIGATE":
+      return `${actor} (sheriff) investigated ${target}${a.result ? ` → ${a.result === "MAFIA" ? "mafia" : "not mafia"}` : ""}`;
+    case "MUTE":
+      return `${actor} (mutilator) silenced ${target}`;
+    case "REVOKE_VOTE":
+      return `${actor} (mutilator) revoked ${target}'s vote`;
+  }
+}
+
+function GameActionHistory({ gameId }: { gameId: number }) {
+  const [actions, setActions] = useState<GameActionEntry[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    api
+      .get<GameActionEntry[]>(`/api/games/${gameId}/actions`)
+      .then((data) => {
+        if (!cancelled) {
+          setActions(data);
+          setLoading(false);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setError((e as Error).message || "Could not load actions");
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gameId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading actions…
+      </div>
+    );
+  }
+  if (error) {
+    return <p className="text-sm text-red-500 py-2">{error}</p>;
+  }
+  if (!actions || actions.length === 0) {
+    return <p className="text-sm text-muted-foreground py-2">No actions were recorded.</p>;
+  }
+
+  // Group by round, then by phase, preserving insertion order
+  const grouped = new Map<number, Map<GamePhase, GameActionEntry[]>>();
+  for (const a of actions) {
+    if (!grouped.has(a.round)) grouped.set(a.round, new Map());
+    const byPhase = grouped.get(a.round)!;
+    if (!byPhase.has(a.phase)) byPhase.set(a.phase, []);
+    byPhase.get(a.phase)!.push(a);
+  }
+
+  return (
+    <div className="space-y-3 py-1">
+      {Array.from(grouped.entries()).map(([round, byPhase]) => (
+        <div key={round} className="border-l-2 border-muted pl-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Round {round}
+          </p>
+          {Array.from(byPhase.entries()).map(([phase, items]) => (
+            <div key={phase} className="space-y-1">
+              <p className="text-xs text-muted-foreground">{phaseLabel[phase]}</p>
+              <ul className="text-sm space-y-0.5">
+                {items.map((a) => (
+                  <li key={a.id} className="text-foreground/90">
+                    {describeAction(a)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }

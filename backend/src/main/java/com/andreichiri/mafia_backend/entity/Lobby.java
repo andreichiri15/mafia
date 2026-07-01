@@ -75,7 +75,11 @@ public class Lobby {
     @OneToMany(mappedBy = "lobby", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<LobbyPlayer> lobbyPlayers = new ArrayList<>();
 
-    @OneToOne(mappedBy = "lobby", cascade = CascadeType.ALL, orphanRemoval = true)
+    /**
+     * No cascade — LobbyService handles game deletion explicitly so finished
+     * games can be preserved as historical records when the lobby is removed.
+     */
+    @OneToOne(mappedBy = "lobby")
     private Game game;
 
     @OneToMany(mappedBy = "lobby", cascade = CascadeType.ALL, orphanRemoval = true)

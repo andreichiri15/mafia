@@ -54,9 +54,9 @@ public class RankedQuitListener {
         if (event.getUser() == null) return;
         Long userId = parseUserId(event.getUser().getName());
         if (userId == null) return;
-        // Always evict from queue immediately
+
         matchmakingService.dequeue(userId);
-        // Mark pending — the scheduled check will confirm after the grace window
+
         disconnectPending.putIfAbsent(userId, System.currentTimeMillis());
     }
 
@@ -69,7 +69,6 @@ public class RankedQuitListener {
         });
         for (Long userId : ready) {
             disconnectPending.remove(userId);
-            // If the user reconnected (now back in registry), no penalty
             if (userRegistry.getUser(userId.toString()) != null) continue;
             applyPenaltyIfInRankedGame(userId);
         }

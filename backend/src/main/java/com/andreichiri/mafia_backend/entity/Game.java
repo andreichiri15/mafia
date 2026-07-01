@@ -13,8 +13,12 @@ public class Game {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /**
+     * Nullable: a finished game gets dissociated from its lobby at endGame time
+     * so it survives in the profile/history even if the lobby is later deleted.
+     */
     @OneToOne
-    @JoinColumn(name = "lobbyId", nullable = false)
+    @JoinColumn(name = "lobbyId")
     private Lobby lobby;
 
     @Column(nullable = false)

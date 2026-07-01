@@ -54,4 +54,16 @@ public class GameController {
             return ResponseEntity.status(403).body(e.getMessage());
         }
     }
+
+    @GetMapping("/games/{gameId}/actions")
+    public ResponseEntity<?> getGameActionHistory(@PathVariable Long gameId) {
+        try {
+            UserPrincipal principal = (UserPrincipal) SecurityContextHolder.getContext()
+                    .getAuthentication().getPrincipal();
+            List<GameDTO.GameActionEntry> actions = gameService.getGameActionHistory(gameId, principal.userId());
+            return ResponseEntity.ok(actions);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(403).body(e.getMessage());
+        }
+    }
 }

@@ -1,8 +1,10 @@
 package com.andreichiri.mafia_backend.dto;
 
 import com.andreichiri.mafia_backend.entity.Game;
+import com.andreichiri.mafia_backend.entity.GameAction;
 import com.andreichiri.mafia_backend.entity.GamePlayer;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class GameDTO {
@@ -45,5 +47,16 @@ public class GameDTO {
     public record GameStartEvent(
             Long gameId,
             Long lobbyId
+    ) {}
+
+    public record GameActionEntry(
+            Long id,
+            int round,
+            Game.GamePhase phase,
+            String actorUsername,
+            String targetUsername,
+            GameAction.ActionType actionType,
+            String result,
+            LocalDateTime executedAt
     ) {}
 }

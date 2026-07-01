@@ -3,10 +3,12 @@ package com.andreichiri.mafia_backend.service;
 import com.andreichiri.mafia_backend.dto.LobbyDTO;
 import com.andreichiri.mafia_backend.dto.LobbySummaryReport;
 import com.andreichiri.mafia_backend.entity.Friendship;
+import com.andreichiri.mafia_backend.entity.Game;
 import com.andreichiri.mafia_backend.entity.Lobby;
 import com.andreichiri.mafia_backend.entity.LobbyPlayer;
 import com.andreichiri.mafia_backend.entity.MafiaUser;
 import com.andreichiri.mafia_backend.repositories.FriendshipRepository;
+import com.andreichiri.mafia_backend.repositories.GameRepository;
 import com.andreichiri.mafia_backend.repositories.LobbyPlayerRepository;
 import com.andreichiri.mafia_backend.repositories.LobbyRepository;
 import com.andreichiri.mafia_backend.repositories.UserRepository;
@@ -40,6 +42,8 @@ public class LobbyService {
     private SimpMessagingTemplate messagingTemplate;
     @Autowired
     private PhaseTimerService phaseTimerService;
+    @Autowired
+    private GameRepository gameRepository;
 
     @Transactional(readOnly = true)
     public List<LobbySummaryReport> searchPublicLobbies(String searchName) {
@@ -207,10 +211,23 @@ public class LobbyService {
 
         // If the host leaves, delete the lobby AND every piece of data associated with it
         if (lobby.getHost().getUserId().equals(principal.userId())) {
-            // Cancel any running phase timer before the game gets cascade-deleted,
-            // otherwise the scheduled callback would fire against a deleted game
-            if (lobby.getGame() != null) {
-                phaseTimerService.cancelTimer(lobby.getGame().getId());
+            Game lobbyGame = lobby.getGame();
+
+            // Branch by game state: in-progress games are abandoned (deleted),
+            // finished games are dissociated so they survive in the profile/history.
+            if (lobbyGame != null) {
+                if (lobbyGame.getGamePhase() == Game.GamePhase.GAME_OVER) {
+                    lobbyGame.setLobby(null);
+                    lobby.setGame(null);
+                    gameRepository.save(lobbyGame);
+                } else {
+                    // Cancel the running phase timer before the game record goes away,
+                    // otherwise the scheduled callback would fire against a deleted game.
+                    phaseTimerService.cancelTimer(lobbyGame.getId());
+                    // Explicit delete (no cascade from Lobby.game any more)
+                    gameRepository.delete(lobbyGame);
+                    lobby.setGame(null);
+                }
             }
 
             // Collect bot user IDs so we can clean them up after the lobby is deleted
@@ -224,15 +241,15 @@ public class LobbyService {
                     "/topic/lobby/" + lobbyId + "/closed",
                     Map.of("reason", "HOST_LEFT")
             );
-            if (lobby.getGame() != null) {
+            if (lobbyGame != null) {
                 messagingTemplate.convertAndSend(
-                        "/topic/game/" + lobby.getGame().getId() + "/closed",
+                        "/topic/game/" + lobbyGame.getId() + "/closed",
                         Map.of("reason", "HOST_LEFT")
                 );
             }
 
-            // Cascade-deletes: lobbyPlayers, game (which cascades to gamePlayers,
-            // gameActions, game messages), lobby messages
+            // Lobby delete now cascades only to lobbyPlayers + lobby messages
+            // (game is already either deleted or dissociated, above).
             lobbyRepository.delete(lobby);
 
             // Bots are throwaway MafiaUser rows — delete them so they don't pile up

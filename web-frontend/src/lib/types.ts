@@ -97,6 +97,25 @@ export interface ProfileResponse {
   matchHistory: MatchHistoryEntry[];
 }
 
+export type GameActionType =
+  | "VOTE"
+  | "MAFIA_KILL"
+  | "HEALED"
+  | "INVESTIGATE"
+  | "MUTE"
+  | "REVOKE_VOTE";
+
+export interface GameActionEntry {
+  id: number;
+  round: number;
+  phase: GamePhase;
+  actorUsername: string | null;
+  targetUsername: string | null;
+  actionType: GameActionType;
+  result: string | null;
+  executedAt: string;
+}
+
 // Ranked
 
 export interface QueueStatus {

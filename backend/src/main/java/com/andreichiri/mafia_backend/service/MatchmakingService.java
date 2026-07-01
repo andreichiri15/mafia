@@ -109,8 +109,6 @@ public class MatchmakingService {
     @Scheduled(fixedDelay = 3000)
     public void tick() {
         try {
-            // Call through the proxy so @Transactional applies AND we know the
-            // transaction has committed before we broadcast.
             MatchResult result = self.tryFormMatch();
             if (result == null) return;
             for (Long userId : result.userIds()) {
@@ -135,12 +133,12 @@ public class MatchmakingService {
         int needed = cfg.getPlayerCount();
         if (queue.size() < needed) return null;
 
-        // Snapshot — sort by waiting time so the longest-waiter "anchors" the match
         List<Entry> all = new ArrayList<>(queue.values());
         all.sort(Comparator.comparingLong(e -> e.enqueuedAtMs));
 
-        Entry anchor = all.get(0);
         long now = System.currentTimeMillis();
+
+        Entry anchor = all.get(0);
         boolean anchorExpired = (now - anchor.enqueuedAtMs) >= ELO_WAIT_LIMIT_MS;
 
         List<Entry> picked;
